@@ -1,0 +1,29 @@
+{
+  "python": "Python 3.12.9",
+  "pytest": {
+    "scope": "harness_test/func + harness_test/edge",
+    "status": "passed"
+  },
+  "locust": {
+    "50": {
+      "requests": 668,
+      "failures": 0,
+      "qps": 73.811,
+      "p95_ms": 1000.0,
+      "failure_rate_percent": 0.0
+    },
+    "100": {
+      "requests": 676,
+      "failures": 0,
+      "qps": 74.8723,
+      "p95_ms": 2000.0,
+      "failure_rate_percent": 0.0
+    }
+  },
+  "allure_results": "F:\\code\\knowledge_agent\\harness_test\\results\\allure",
+  "isolated_storage": {
+    "datas_dir": "F:\\code\\knowledge_agent\\harness_test\\.tmp\\datas",
+    "chroma_dir": "F:\\code\\knowledge_agent\\harness_test\\.tmp\\chroma",
+    "app_db_path": "F:\\code\\knowledge_agent\\harness_test\\.tmp\\app.db"
+  }
+}

@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+import json
+import re
+from typing import Any, Iterator
+
+from fastapi import HTTPException
+
+from agent_server.core import db
+from agent_server.core.auth import get_current_user
+from agent_server.core.llm_client import stream_chat_completion
+from agent_server.graph_flow.prompt_template import build_decision_messages
+from agent_server.graph_flow.state import AgentState
+from agent_server.tools.business_tools import (
+    doc_retrieve,
+    match_similar_ticket,
+)
+from agent_server.tools.schemas import DocRetrieveInput, MatchSimilarTicketInput
+
+
+def identity_check_node(state: AgentState) -> AgentState:
+    if not state.user:
+        raise HTTPException(status_code=401, detail="missing user")
+    state.tool_events.append({"tool": "identity_check", "status": "ok"})
+    return state
+
+
+def parallel_rag_node(state: AgentState) -> AgentState:
+    rag = doc_retrieve(DocRetrieveInput(query=state.question, top_k=5), state.user)
+    similar = match_similar_ticket(MatchSimilarTicketInput(query=state.question, limit=5), state.user)
+    state.rag_results = rag["items"]
+    state.similar_tickets = similar["items"]
+    state.tool_events.append({"tool": "doc_retrieve", "count": len(state.rag_results)})
+    state.tool_events.append({"tool": "match_similar_ticket", "count": len(state.similar_tickets)})
+    return state
+
+
+def decide_with_llm(question: str, context: str) -> dict[str, Any]:
+    content = "".join(stream_chat_completion(build_decision_messages(question, context))).strip()
+    if not content:
+        raise RuntimeError("LLM returned empty content")
+    try:
+        start = content.find("{")
+        end = content.rfind("}")
+        parsed = json.loads(content[start : end + 1]) if start >= 0 and end > start else {}
+    except json.JSONDecodeError:
+        parsed = {}
+    answer = str(parsed.get("answer") or content)
+    return {
+        "answer": answer,
+        "needs_ticket": bool(parsed.get("needs_ticket", True)),
+        "title": str(parsed.get("title") or question[:40] or "咨询工单"),
+    }
+
+
+def build_agent_context(state: AgentState) -> str:
+    sections: list[str] = []
+    history = db.list_recent_chat_history(state.user, limit=5)
+    if history:
+        history_lines = [f"User: {item['question']}\nAssistant: {item['answer']}" for item in history]
+        sections.append("Recent chat history:\n" + "\n\n".join(history_lines))
+    if state.rag_results:
+        sections.append("Retrieved knowledge:\n" + "\n\n".join(item["content"] for item in state.rag_results[:5]))
+    return "\n\n".join(sections)
+
+
+def llm_decision_node(state: AgentState) -> AgentState:
+    context = build_agent_context(state)
+    decision = decide_with_llm(state.question, context)
+    state.llm_answer = decision["answer"]
+    state.guardrail = guardrail_check(state.llm_answer, context)
+    state.tool_events.append({"tool": "llm_decision", "needs_ticket": decision["needs_ticket"]})
+    if decision["needs_ticket"]:
+        state.ticket_suggestion = {
+            "recommended": True,
+            "title": decision["title"][:80],
+            "content": state.question,
+            "answer": state.llm_answer,
+        }
+    return state
+
+
+def guardrail_check(answer: str, context: str) -> dict[str, Any]:
+    patterns = {
+        "ticket_ids": r"\b(?:TK|工单)[-_\dA-Za-z]+\b",
+        "amounts": r"\d+(?:\.\d+)?\s*(?:元|万元|块)",
+        "clauses": r"第[一二三四五六七八九十百\d]+条",
+    }
+    checked = 0
+    misses = 0
+    details: dict[str, list[str]] = {}
+    for name, pattern in patterns.items():
+        values = sorted(set(re.findall(pattern, answer)))
+        if not values:
+            continue
+        checked += len(values)
+        missing = [value for value in values if value not in context]
+        misses += len(missing)
+        details[name] = missing
+    risk_score = round(misses / checked, 4) if checked else 0.0
+    return {"risk_score": risk_score, "checked_items": checked, "unmatched": details}
+
+
+def output_node(state: AgentState) -> dict[str, Any]:
+    return {
+        "answer": state.llm_answer,
+        "ticket_id": state.ticket["id"] if state.ticket else None,
+        "ticket_suggestion": state.ticket_suggestion,
+        "retrieval": state.rag_results,
+        "similar_tickets": state.similar_tickets,
+        "guardrail": state.guardrail,
+        "tool_events": state.tool_events,
+    }
+
+
+def run_agent(user: dict[str, Any], question: str) -> dict[str, Any]:
+    state = AgentState(user=user, question=question)
+    for node in (identity_check_node, parallel_rag_node, llm_decision_node):
+        state = node(state)
+    return output_node(state)
+
+
+def run_agent_events(user: dict[str, Any], question: str) -> Iterator[dict[str, Any]]:
+    state = identity_check_node(AgentState(user=user, question=question))
+    yield {"event": "tool", "data": state.tool_events[-1]}
+    state = parallel_rag_node(state)
+    yield {"event": "tool", "data": state.tool_events[-2]}
+    yield {"event": "tool", "data": state.tool_events[-1]}
+    state = llm_decision_node(state)
+    for event in state.tool_events[3:]:
+        yield {"event": "tool", "data": event}
+    yield {"event": "done", "data": output_node(state)}

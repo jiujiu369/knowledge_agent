@@ -1,0 +1,28 @@
+# 全量依赖合并版（供提前一键下载，等价于 M0+M3+M4 三份之和）
+# 安装：pip install -r requirements.txt
+# 提示：paddlepaddle / torch 体积较大，建议用国内源加速，例如：
+#   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# ===== 后端主服务（agent_server）=====
+fastapi
+uvicorn[standard]
+langchain
+langgraph
+chromadb
+sentence-transformers
+pydantic
+python-multipart
+sse-starlette
+rank_bm25
+jieba
+paddlepaddle
+paddleocr
+
+# ===== 前端（web）=====
+streamlit
+requests
+
+# ===== 测试（harness_test）=====
+pytest
+locust
+allure-pytest
