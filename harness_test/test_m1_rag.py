@@ -131,6 +131,76 @@ def test_vlm_semantic_caption_is_merged_with_ocr_text(monkeypatch):
     assert "流程图：提交申请" in text
 
 
+def test_vlm_caption_uses_tokenizer_chat_template_when_processor_lacks_one(monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    from agent_server.rag import loader
+
+    class FakeTensor:
+        shape = (1, 3)
+
+        def to(self, device):
+            return self
+
+    class FakeInputs(dict):
+        def __init__(self):
+            super().__init__({"input_ids": FakeTensor()})
+
+    class FakeOutput:
+        def __getitem__(self, key):
+            return self
+
+    class FakeTokenizer:
+        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+            assert messages[0]["content"][0]["type"] == "image"
+            return "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>描述图片<|im_end|>\n<|im_start|>assistant\n"
+
+    class FakeProcessor:
+        tokenizer = FakeTokenizer()
+
+        def __call__(self, text, images, return_tensors):
+            assert "<|image_pad|>" in text[0]
+            assert len(images) == 1
+            assert return_tensors == "pt"
+            return FakeInputs()
+
+        def batch_decode(self, generated, skip_special_tokens=True, clean_up_tokenization_spaces=False):
+            return ["图中包含测试文字"]
+
+    class FakeModel:
+        device = "cpu"
+
+        def generate(self, **inputs):
+            return FakeOutput()
+
+    image = Image.new("RGB", (16, 16), "white")
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+
+    monkeypatch.setattr(loader, "vlm_enabled", lambda: True)
+    monkeypatch.setattr(loader, "get_vlm_model_and_processor", lambda: (FakeModel(), FakeProcessor()))
+
+    assert loader.caption_image_with_vlm(buffer.getvalue(), "png") == "图中包含测试文字"
+
+
+def test_vlm_caption_falls_back_when_processor_chat_template_raises(monkeypatch):
+    from agent_server.rag import loader
+
+    class FakeTokenizer:
+        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+            return "tokenizer-template"
+
+    class FakeProcessor:
+        tokenizer = FakeTokenizer()
+
+        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+            raise ValueError("processor has no chat template")
+
+    assert loader._apply_vlm_chat_template(FakeProcessor(), []) == "tokenizer-template"
+
+
 def test_real_vlm_load_is_skipped_until_4bit_dependency_is_ready():
     from agent_server.rag import loader
 

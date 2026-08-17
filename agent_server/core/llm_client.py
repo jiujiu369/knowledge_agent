@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Iterable
 
+import httpx
 from openai import OpenAI
 
 from agent_server.core.config import get_llm_settings
@@ -17,7 +18,13 @@ def mock_llm_enabled() -> bool:
 
 def get_client() -> OpenAI:
     settings = get_llm_settings(validate_key=True)
-    return OpenAI(api_key=settings.api_key, base_url=settings.base_url, timeout=settings.timeout_seconds)
+    http_client = httpx.Client(trust_env=False, timeout=settings.timeout_seconds)
+    return OpenAI(
+        api_key=settings.api_key,
+        base_url=settings.base_url,
+        timeout=settings.timeout_seconds,
+        http_client=http_client,
+    )
 
 
 def chat_completion(messages: list[dict[str, str]], temperature: float | None = None) -> str:

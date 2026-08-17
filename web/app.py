@@ -51,6 +51,29 @@ ROLE_LABELS = {
     "ops": "运维",
     "employee": "普通用户",
 }
+UI_ERROR_MESSAGE_MAP = {
+    "invalid username or password": "账号或密码错误",
+    "missing bearer token": "缺少登录令牌，请重新登录",
+    "invalid bearer token": "登录状态已失效，请重新登录",
+    "invalid old password": "旧密码错误",
+    "invalid role": "角色无效",
+    "username already exists": "账号已存在",
+    "user not found": "用户不存在",
+    "admin only": "仅管理员可操作",
+    "cannot reset current user": "不能重置当前登录账号的密码",
+    "cannot delete current user": "不能删除当前登录账号",
+    "unsupported file type": "不支持的文件类型",
+    "document not found": "文档不存在",
+    "ticket not found": "工单不存在",
+    "admin approval required": "该工单需要管理员审批",
+    "unsupported ticket status": "不支持的工单状态",
+    "tool not found": "工具不存在",
+    "tool forbidden": "当前角色无权使用该工具",
+    "unsupported export format": "不支持的导出格式",
+    "missing user": "缺少登录用户信息",
+    "llm returned empty content": "模型未返回有效内容",
+    "too many requests": "请求过于频繁，请稍后再试",
+}
 STATUS_LABELS = {
     "pending": "待审批",
     "approved": "已批准",
@@ -94,8 +117,31 @@ def page_title(title: str, caption: str = "") -> None:
         st.caption(caption)
 
 
+def localize_ui_error(error: Exception) -> str:
+    text = str(error).strip()
+    lowered = text.lower()
+    for source, target in UI_ERROR_MESSAGE_MAP.items():
+        if source in lowered:
+            return text.replace(source, target)
+    if any(keyword in lowered for keyword in ("field required", "value error", "input should", "validation error")):
+        return "请求参数不合法"
+    if any(
+        keyword in lowered
+        for keyword in (
+            "httpconnectionpool",
+            "connection refused",
+            "failed to establish a new connection",
+            "connection aborted",
+        )
+    ):
+        return "无法连接后端服务，请确认后端已启动"
+    if any("\u4e00" <= ch <= "\u9fff" for ch in text):
+        return text
+    return f"操作失败：{text}"
+
+
 def show_error(error: Exception) -> None:
-    st.error(str(error))
+    st.error(localize_ui_error(error))
 
 
 def role_label(role: str) -> str:

@@ -8,8 +8,17 @@
 - Embedding 本地运行：使用 `models/bge-base-zh-v1.5/`，不调用云端 Embedding。
 - 向量库本地运行：Chroma 持久化在 `datas/chroma/`。
 - OCR 本地运行：PaddleOCR 在本机解析 PDF/Word 插图文字。
+- VLM 本地运行：`models/qwen2.5-vl/` 可用时对插图做语义增强，不上传图片。
 - 只有 LLM 生成层走云端 API：通过 OpenAI 兼容接口访问 Agnes/Ark。
+- 云端 LLM 客户端默认忽略系统代理环境变量，避免本机代理异常导致 Ark/Agnes HTTPS 连接失败。
 - API key 只走环境变量：复制 `.env.example` 为 `.env` 后填写 `AGNES_API_KEY` 或 `ARK_API_KEY`，代码和文档不写真实 key。
+
+## 当前可用状态
+
+- 后端 API：`/health` 可正常返回 `{"status":"ok"}`。
+- 云端 LLM：`.env` 配置的 Ark/Agnes OpenAI 兼容接口可用；客户端已禁用系统代理继承。
+- 本地 VLM：`models/qwen2.5-vl/` 权重、`bitsandbytes`、4-bit 加载链路已打通，可用于插图语义增强。
+- 本地 RAG：BGE Embedding、Chroma、PaddleOCR、reranker 均按本地链路运行。
 
 ## 环境
 
@@ -169,6 +178,24 @@ curl -X POST http://127.0.0.1:8000/api/auth/register -H "Content-Type: applicati
 
 ## 自检命令
 
+后端健康检查：
+
+```powershell
+F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from fastapi.testclient import TestClient; from agent_server.main import app; r=TestClient(app).get('/health'); print(r.status_code, r.text)"
+```
+
+云端 LLM 连通性：
+
+```powershell
+F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from agent_server.core.llm_client import chat_completion; print(chat_completion([{'role':'user','content':'只回复 OK'}], temperature=0))"
+```
+
+本地 VLM 状态：
+
+```powershell
+F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from agent_server.rag.loader import vlm_status; import json; print(json.dumps(vlm_status(), ensure_ascii=False, indent=2))"
+```
+
 RAG 冒烟：
 
 ```powershell
@@ -211,7 +238,7 @@ F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
 - API 文档：`docs/api_doc.md`
 - 演示指南：`docs/demo_guide.md`
 - 简历量化点：`docs/resume_point.md`
-- 使用说明：`使用说明.md`
+- 使用说明：`使用说明书.md`
 - M4 结果：`harness_test/results/m4_summary.json`
 - M5 输出：`loop_optimizer/output/`
 
@@ -229,7 +256,7 @@ F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
 - embed_loader：固定使用本地 `F:\code\knowledge_agent\models\bge-base-zh-v1.5`，维度校验为 768。
 - vector_store：单 Chroma，本地持久化到 `datas/chroma`，异常时保留关键词兜底。
 - reranker：`models\bge-reranker-base` 已就位；`smoke_test` 会设置 `RERANKER_ENABLED=true` 并验证 Top-1 重排探针。
-- VLM：`models\qwen2.5-vl` 本地权重已就位，加载配置包含 `load_in_4bit=True`；若 `.venv` 未安装 `bitsandbytes`，真实 4-bit VLM 加载测试会跳过，插图语义继续使用 PaddleOCR 文本。
+- VLM：`models\qwen2.5-vl` 本地权重已就位，加载配置包含 `load_in_4bit=True`；当前 `.venv` 已安装 `bitsandbytes`，真实 VLM 加载和图片描述链路可用。若后续环境缺少 4-bit 依赖，插图语义会回退为 PaddleOCR 文本。
 
 M1 验证命令：
 
