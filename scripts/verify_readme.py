@@ -23,7 +23,7 @@ REQUIRED_PATHS = [
     "docs/api_doc.md",
     "docs/demo_guide.md",
     "docs/resume_point.md",
-    "使用说明.md",
+    "使用说明书.md",
     "scripts/freshman_run.sh",
     "scripts/verify_readme.py",
 ]

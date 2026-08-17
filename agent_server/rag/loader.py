@@ -294,7 +294,7 @@ def caption_image_with_vlm(payload: bytes, ext: str = "png") -> str:
         image = Image.open(BytesIO(payload)).convert("RGB")
         prompt = "请用简洁中文描述这张企业制度插图中的流程、节点和关键文字。"
         messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
-        text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        text = _apply_vlm_chat_template(processor, messages)
         inputs = processor(text=[text], images=[image], return_tensors="pt")
         if hasattr(model, "device"):
             inputs = {key: value.to(model.device) if hasattr(value, "to") else value for key, value in inputs.items()}
@@ -306,6 +306,27 @@ def caption_image_with_vlm(payload: bytes, ext: str = "png") -> str:
     except Exception as exc:
         LOGGER.warning("VLM semantic caption failed; using OCR text only: %s", exc)
         return ""
+
+
+def _apply_vlm_chat_template(processor: Any, messages: list[dict[str, Any]]) -> str:
+    template_kwargs = {"tokenize": False, "add_generation_prompt": True}
+    if hasattr(processor, "apply_chat_template"):
+        try:
+            return processor.apply_chat_template(messages, **template_kwargs)
+        except Exception as exc:
+            if "chat template" not in str(exc).lower():
+                raise
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is not None and hasattr(tokenizer, "apply_chat_template"):
+        return tokenizer.apply_chat_template(messages, **template_kwargs)
+
+    prompt = messages[0]["content"][1]["text"]
+    return (
+        "<|im_start|>user\n"
+        f"<|vision_start|><|image_pad|><|vision_end|>{prompt}<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
 
 
 @lru_cache(maxsize=1)

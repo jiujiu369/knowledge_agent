@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from tkinter import BOTH, END, LEFT, RIGHT, Button, Frame, Label, StringVar, Text, Tk, messagebox
+from tkinter import BOTH, END, LEFT, RIGHT, Button, Frame, Label, StringVar, Text, Tk, messagebox, simpledialog
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +70,7 @@ class LocalLauncher:
             ("检查状态", self.check_status),
             ("启动后端", self.start_backend),
             ("重启后端", self.restart_backend),
+            ("注册管理员", self.register_admin_dialog),
             ("启动前端", self.start_frontend),
             ("打开前端页面", lambda: webbrowser.open(FRONTEND_URL)),
             ("打开后端健康检查", lambda: webbrowser.open(f"{BACKEND_URL}/health")),
@@ -123,6 +124,49 @@ class LocalLauncher:
             self._log("后端已经在 8000 端口运行。")
             return
         self._start_backend_process()
+
+    def register_admin_dialog(self) -> None:
+        username = simpledialog.askstring("注册管理员", "请输入管理员账号：", parent=self.root)
+        if username is None:
+            return
+        username = username.strip()
+        if not 3 <= len(username) <= 64:
+            messagebox.showerror("注册失败", "管理员账号长度必须为 3 到 64 个字符。")
+            return
+
+        password = simpledialog.askstring("注册管理员", "请输入管理员密码（至少 8 位）：", parent=self.root, show="*")
+        if password is None:
+            return
+        if not 8 <= len(password) <= 128:
+            messagebox.showerror("注册失败", "管理员密码长度必须为 8 到 128 个字符。")
+            return
+
+        confirm_password = simpledialog.askstring("注册管理员", "请再次输入管理员密码：", parent=self.root, show="*")
+        if confirm_password is None:
+            return
+        if password != confirm_password:
+            messagebox.showerror("注册失败", "两次输入的密码不一致。")
+            return
+
+        try:
+            user = self._create_local_admin(username, password)
+        except Exception as exc:
+            detail = getattr(exc, "detail", None) or str(exc)
+            messagebox.showerror("注册失败", f"管理员账号创建失败：{detail}")
+            self._log(f"管理员账号注册失败：{username}。")
+            return
+
+        self._log(f"已注册管理员账号：{user['username']}。")
+        messagebox.showinfo("注册成功", f"管理员账号已创建：{user['username']}")
+
+    @staticmethod
+    def _create_local_admin(username: str, password: str) -> dict[str, str]:
+        if str(PROJECT_ROOT) not in sys.path:
+            sys.path.insert(0, str(PROJECT_ROOT))
+        from agent_server.core.auth import register_user
+
+        user = register_user(username=username, password=password, role="admin")
+        return {"username": str(user["username"])}
 
     def restart_backend(self) -> None:
         threading.Thread(target=self._restart_backend_worker, daemon=True).start()

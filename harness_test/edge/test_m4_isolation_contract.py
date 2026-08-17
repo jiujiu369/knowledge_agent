@@ -32,6 +32,28 @@ def test_mock_llm_stream_does_not_require_real_api_key(monkeypatch):
     assert "mock" in "".join(chunks).lower()
 
 
+def test_real_llm_client_ignores_environment_proxy(monkeypatch):
+    captured = {}
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setenv("AGNES_API_KEY", "test-key")
+    monkeypatch.setenv("AGNES_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("AGNES_MODEL", "test-model")
+    monkeypatch.delenv("KNOWLEDGE_AGENT_MOCK_LLM", raising=False)
+
+    import agent_server.core.llm_client as llm_client
+
+    monkeypatch.setattr(llm_client, "OpenAI", FakeOpenAI)
+
+    llm_client.get_client()
+
+    http_client = captured["http_client"]
+    assert http_client.trust_env is False
+
+
 def test_rate_limit_can_be_disabled_for_local_stress(monkeypatch):
     monkeypatch.setenv("KNOWLEDGE_AGENT_DISABLE_RATE_LIMIT", "1")
 
