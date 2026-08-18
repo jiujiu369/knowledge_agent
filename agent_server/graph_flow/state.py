@@ -15,3 +15,4 @@ class AgentState:
     ticket_suggestion: dict[str, Any] | None = None
     guardrail: dict[str, Any] = field(default_factory=dict)
     tool_events: list[dict[str, Any]] = field(default_factory=list)
+    rag_rounds: int = 0

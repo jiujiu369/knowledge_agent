@@ -2,7 +2,7 @@
 
 ## 项目一句话
 
-基于 FastAPI + Streamlit + 本地 RAG + LangGraph 风格编排的企业内部知识库工单智能体，支持制度问答、自动工单、RBAC、压测和半自动 Loop 优化。
+基于 FastAPI + Streamlit + 本地 RAG + LangGraph 状态图编排的企业内部知识库工单智能体，支持制度问答、自动工单、RBAC、压测和半自动 Loop 优化。
 
 ## 工程化亮点
 

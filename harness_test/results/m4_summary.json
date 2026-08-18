@@ -6,17 +6,17 @@
   },
   "locust": {
     "50": {
-      "requests": 772,
+      "requests": 706,
       "failures": 0,
-      "qps": 85.681,
-      "p95_ms": 1100.0,
+      "qps": 78.0977,
+      "p95_ms": 1200.0,
       "failure_rate_percent": 0.0
     },
     "100": {
-      "requests": 809,
+      "requests": 748,
       "failures": 0,
-      "qps": 89.779,
-      "p95_ms": 1700.0,
+      "qps": 83.0306,
+      "p95_ms": 1800.0,
       "failure_rate_percent": 0.0
     }
   },
