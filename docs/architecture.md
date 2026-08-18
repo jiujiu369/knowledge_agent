@@ -13,7 +13,7 @@ flowchart LR
     API --> Knowledge["Knowledge API\napi/knowledge_router.py"]
     API --> Tool["Tool Router\napi/tool_router.py"]
 
-    Chat --> Graph["LangGraph 风格编排\ngraph_flow/graph_builder.py"]
+    Chat --> Graph["LangGraph 状态图编排\ngraph_flow/graph_builder.py"]
     Graph --> Tools["业务工具\ntools/business_tools.py"]
     Tools --> RAG["RAG 检索链路\nretriever_pipe.py"]
     RAG --> Loader["文档解析 + OCR\nloader.py"]
