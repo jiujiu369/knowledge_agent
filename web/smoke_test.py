@@ -19,6 +19,12 @@ PASSWORD = "Passw0rd!"
 
 
 def _json(response: requests.Response) -> dict[str, Any]:
+    """`json`。
+
+    :param response: 需要解析或转换的 HTTP 响应对象，类型为 ``requests.Response``。
+    :return: 返回`json`得到的结果，返回类型为 ``dict[str, Any]``。
+    :raises AssertionError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     try:
         payload = response.json()
     except ValueError as exc:
@@ -28,6 +34,12 @@ def _json(response: requests.Response) -> dict[str, Any]:
 
 
 def _register(username: str, role: str) -> None:
+    """注册。
+
+    :param username: 用于定位账户的用户名，类型为 ``str``。
+    :param role: 用于权限判断的用户角色标识，类型为 ``str``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     response = requests.post(
         f"{BASE_URL}/api/auth/register",
         json={"username": username, "password": PASSWORD, "role": role},
@@ -39,6 +51,11 @@ def _register(username: str, role: str) -> None:
 
 
 def _login(username: str) -> str:
+    """执行登录。
+
+    :param username: 用于定位账户的用户名，类型为 ``str``。
+    :return: 返回执行登录得到的结果，返回类型为 ``str``。
+    """
     response = requests.post(
         f"{BASE_URL}/api/auth/login",
         json={"username": username, "password": PASSWORD},
@@ -52,6 +69,10 @@ def _login(username: str) -> str:
 
 
 def _make_docx() -> Path:
+    """创建`docx`。
+
+    :return: 返回创建`docx`得到的结果，返回类型为 ``Path``。
+    """
     document = Document()
     document.add_heading("M3 前端上传冒烟文档", level=1)
     document.add_paragraph("这是一份用于 Streamlit 上传页冒烟测试的知识库文档。")
@@ -63,12 +84,21 @@ def _make_docx() -> Path:
 
 
 def _prepare_admin(admin: str) -> tuple[str, dict[str, str]]:
+    """准备管理员。
+
+    :param admin: 函数处理所需的“管理员”数据，类型为 ``str``。
+    :return: 返回准备管理员得到的结果，返回类型为 ``tuple[str, dict[str, str]]``。
+    """
     _register(admin, "admin")
     token = _login(admin)
     return token, auth_headers(token)
 
 
 def main() -> None:
+    """执行当前模块的主流程并协调各项处理步骤。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 

@@ -20,6 +20,10 @@ TMP_DIR = PROJECT_ROOT / "harness_test" / ".tmp"
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数。
+
+    :return: 返回解析命令行参数得到的结果，返回类型为 ``argparse.Namespace``。
+    """
     parser = argparse.ArgumentParser(description="Run M4 pytest, local-service Locust stress, and Allure result export.")
     parser.add_argument("--stress-duration", default="10s", help="Locust run time for each concurrency level.")
     parser.add_argument("--users", nargs="+", type=int, default=[50, 100], help="Concurrency levels.")
@@ -27,6 +31,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def ensure_python() -> None:
+    """确保`python`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :raises SystemExit: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     if not VENV_PYTHON.exists():
         raise SystemExit(f"missing required Python: {VENV_PYTHON}")
     result = subprocess.run([str(VENV_PYTHON), "--version"], capture_output=True, text=True, check=True)
@@ -36,6 +45,11 @@ def ensure_python() -> None:
 
 
 def free_port() -> int:
+    """获取可用端口。
+
+    :return: 返回获取可用端口得到的结果，返回类型为 ``int``。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     for port in range(8010, 8100):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             try:
@@ -47,6 +61,10 @@ def free_port() -> int:
 
 
 def harness_env() -> dict[str, str]:
+    """`harness`环境变量。
+
+    :return: 返回`harness`环境变量得到的结果，返回类型为 ``dict[str, str]``。
+    """
     env = os.environ.copy()
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     env.update(
@@ -67,11 +85,23 @@ def harness_env() -> dict[str, str]:
 
 
 def run_command(command: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """运行命令。
+
+    :param command: 需要执行的命令及其参数序列，类型为 ``list[str]``。
+    :param env: 传递给子进程的环境变量映射，类型为 ``dict[str, str]``。
+    :return: 返回运行命令得到的结果，返回类型为 ``subprocess.CompletedProcess[str]``。
+    """
     print("+ " + " ".join(command), flush=True)
     return subprocess.run(command, cwd=PROJECT_ROOT, env=env, text=True, capture_output=True, check=False)
 
 
 def start_server(port: int, env: dict[str, str]) -> subprocess.Popen[str]:
+    """启动服务。
+
+    :param port: 服务监听或探测使用的 TCP 端口号，类型为 ``int``。
+    :param env: 传递给子进程的环境变量映射，类型为 ``dict[str, str]``。
+    :return: 返回启动服务得到的结果，返回类型为 ``subprocess.Popen[str]``。
+    """
     log_dir = RESULTS_DIR / "server"
     log_dir.mkdir(parents=True, exist_ok=True)
     out = (log_dir / "uvicorn.out.log").open("w", encoding="utf-8")
@@ -96,6 +126,14 @@ def start_server(port: int, env: dict[str, str]) -> subprocess.Popen[str]:
 
 
 def wait_health(port: int, process: subprocess.Popen[str], timeout_seconds: float = 30.0) -> None:
+    """等待检查服务健康状态。
+
+    :param port: 服务监听或探测使用的 TCP 端口号，类型为 ``int``。
+    :param process: 需要监控、等待或终止的子进程对象，类型为 ``subprocess.Popen[str]``。
+    :param timeout_seconds: 允许等待目标状态的最长秒数，类型为 ``float``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     deadline = time.monotonic() + timeout_seconds
     url = f"http://127.0.0.1:{port}/health"
     while time.monotonic() < deadline:
@@ -111,6 +149,11 @@ def wait_health(port: int, process: subprocess.Popen[str], timeout_seconds: floa
 
 
 def parse_locust_csv(prefix: Path) -> dict[str, float]:
+    """解析Locust 压测结果`csv`。
+
+    :param prefix: 定位相关文件或结果字段时使用的名称前缀，类型为 ``Path``。
+    :return: 返回解析Locust 压测结果`csv`得到的结果，返回类型为 ``dict[str, float]``。
+    """
     stats_path = Path(str(prefix) + "_stats.csv")
     with stats_path.open("r", encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -124,6 +167,10 @@ def parse_locust_csv(prefix: Path) -> dict[str, float]:
 
 
 def main() -> int:
+    """执行当前模块的主流程并协调各项处理步骤。
+
+    :return: 返回执行当前模块的主流程得到的结果，返回类型为 ``int``。
+    """
     args = parse_args()
     ensure_python()
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

@@ -19,6 +19,12 @@ from agent_server.tools.schemas import DocRetrieveInput, MatchSimilarTicketInput
 
 
 def identity_check_node(state: AgentState) -> AgentState:
+    """`identity`检查`node`。
+
+    :param state: 函数处理所需的“状态”数据，类型为 ``AgentState``。
+    :return: 返回`identity`检查`node`得到的结果，返回类型为 ``AgentState``。
+    :raises HTTPException: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     if not state.user:
         raise HTTPException(status_code=401, detail="missing user")
     state.tool_events.append({"tool": "identity_check", "status": "ok"})
@@ -26,6 +32,11 @@ def identity_check_node(state: AgentState) -> AgentState:
 
 
 def parallel_rag_node(state: AgentState) -> AgentState:
+    """`parallel`RAG 检索`node`。
+
+    :param state: 函数处理所需的“状态”数据，类型为 ``AgentState``。
+    :return: 返回`parallel`RAG 检索`node`得到的结果，返回类型为 ``AgentState``。
+    """
     rag = doc_retrieve(DocRetrieveInput(query=state.question, top_k=5), state.user)
     similar = match_similar_ticket(MatchSimilarTicketInput(query=state.question, limit=5), state.user)
     state.rag_results = rag["items"]
@@ -36,6 +47,13 @@ def parallel_rag_node(state: AgentState) -> AgentState:
 
 
 def decide_with_llm(question: str, context: str) -> dict[str, Any]:
+    """生成决策`with`大语言模型。
+
+    :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+    :param context: 函数处理所需的“`context`”数据，类型为 ``str``。
+    :return: 返回生成决策`with`大语言模型得到的结果，返回类型为 ``dict[str, Any]``。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     content = "".join(stream_chat_completion(build_decision_messages(question, context))).strip()
     if not content:
         raise RuntimeError("LLM returned empty content")
@@ -54,6 +72,11 @@ def decide_with_llm(question: str, context: str) -> dict[str, Any]:
 
 
 def build_agent_context(state: AgentState) -> str:
+    """构建智能体`context`。
+
+    :param state: 函数处理所需的“状态”数据，类型为 ``AgentState``。
+    :return: 返回构建智能体`context`得到的结果，返回类型为 ``str``。
+    """
     sections: list[str] = []
     history = db.list_recent_chat_history(state.user, limit=5)
     if history:
@@ -65,6 +88,11 @@ def build_agent_context(state: AgentState) -> str:
 
 
 def llm_decision_node(state: AgentState) -> AgentState:
+    """大语言模型智能体决策`node`。
+
+    :param state: 函数处理所需的“状态”数据，类型为 ``AgentState``。
+    :return: 返回大语言模型智能体决策`node`得到的结果，返回类型为 ``AgentState``。
+    """
     context = build_agent_context(state)
     decision = decide_with_llm(state.question, context)
     state.llm_answer = decision["answer"]
@@ -81,6 +109,12 @@ def llm_decision_node(state: AgentState) -> AgentState:
 
 
 def guardrail_check(answer: str, context: str) -> dict[str, Any]:
+    """执行安全护栏检查检查。
+
+    :param answer: 函数处理所需的“`answer`”数据，类型为 ``str``。
+    :param context: 函数处理所需的“`context`”数据，类型为 ``str``。
+    :return: 返回执行安全护栏检查检查得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     patterns = {
         "ticket_ids": r"\b(?:TK|工单)[-_\dA-Za-z]+\b",
         "amounts": r"\d+(?:\.\d+)?\s*(?:元|万元|块)",
@@ -102,6 +136,11 @@ def guardrail_check(answer: str, context: str) -> dict[str, Any]:
 
 
 def output_node(state: AgentState) -> dict[str, Any]:
+    """输出`node`。
+
+    :param state: 函数处理所需的“状态”数据，类型为 ``AgentState``。
+    :return: 返回输出`node`得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     return {
         "answer": state.llm_answer,
         "ticket_id": state.ticket["id"] if state.ticket else None,
@@ -114,6 +153,12 @@ def output_node(state: AgentState) -> dict[str, Any]:
 
 
 def run_agent(user: dict[str, Any], question: str) -> dict[str, Any]:
+    """运行智能体。
+
+    :param user: 函数处理所需的“用户”数据，类型为 ``dict[str, Any]``。
+    :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+    :return: 返回运行智能体得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     state = AgentState(user=user, question=question)
     for node in (identity_check_node, parallel_rag_node, llm_decision_node):
         state = node(state)
@@ -121,6 +166,12 @@ def run_agent(user: dict[str, Any], question: str) -> dict[str, Any]:
 
 
 def run_agent_events(user: dict[str, Any], question: str) -> Iterator[dict[str, Any]]:
+    """运行智能体`events`。
+
+    :param user: 函数处理所需的“用户”数据，类型为 ``dict[str, Any]``。
+    :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     state = identity_check_node(AgentState(user=user, question=question))
     yield {"event": "tool", "data": state.tool_events[-1]}
     state = parallel_rag_node(state)

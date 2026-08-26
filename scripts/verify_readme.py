@@ -50,6 +50,10 @@ REQUIRED_COMMAND_FRAGMENTS = [
 
 
 def main() -> int:
+    """执行当前模块的主流程并协调各项处理步骤。
+
+    :return: 返回执行当前模块的主流程得到的结果，返回类型为 ``int``。
+    """
     failures: list[str] = []
     if not README_PATH.exists():
         failures.append("missing README.md")
@@ -76,6 +80,11 @@ def main() -> int:
 
 
 def _finish(failures: list[str]) -> int:
+    """`finish`。
+
+    :param failures: 函数处理所需的“`failures`”数据，类型为 ``list[str]``。
+    :return: 返回`finish`得到的结果，返回类型为 ``int``。
+    """
     if failures:
         for failure in failures:
             print(f"FAIL: {failure}")

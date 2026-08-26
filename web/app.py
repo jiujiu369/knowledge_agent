@@ -85,6 +85,10 @@ STATUS_LABELS = {
 
 
 def init_state() -> None:
+    """初始化状态。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     defaults = {
         "api_base_url": api_base_url(),
         "token": "",
@@ -104,20 +108,39 @@ def init_state() -> None:
 
 
 def is_logged_in() -> bool:
+    """判断`logged``in`。
+
+    :return: 返回判断`logged``in`得到的结果，返回类型为 ``bool``。
+    """
     return bool(st.session_state.get("token"))
 
 
 def is_admin() -> bool:
+    """判断管理员。
+
+    :return: 返回判断管理员得到的结果，返回类型为 ``bool``。
+    """
     return st.session_state.get("tier") == "admin" or st.session_state.get("role") == "admin"
 
 
 def page_title(title: str, caption: str = "") -> None:
+    """页面`title`。
+
+    :param title: 函数处理所需的“`title`”数据，类型为 ``str``。
+    :param caption: 函数处理所需的“生成说明文本”数据，类型为 ``str``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     st.title(title)
     if caption:
         st.caption(caption)
 
 
 def localize_ui_error(error: Exception) -> str:
+    """本地化界面错误信息。
+
+    :param error: 函数处理所需的“错误信息”数据，类型为 ``Exception``。
+    :return: 返回本地化界面错误信息得到的结果，返回类型为 ``str``。
+    """
     text = str(error).strip()
     lowered = text.lower()
     for source, target in UI_ERROR_MESSAGE_MAP.items():
@@ -141,18 +164,37 @@ def localize_ui_error(error: Exception) -> str:
 
 
 def show_error(error: Exception) -> None:
+    """显示错误信息。
+
+    :param error: 函数处理所需的“错误信息”数据，类型为 ``Exception``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     st.error(localize_ui_error(error))
 
 
 def role_label(role: str) -> str:
+    """获取角色`label`。
+
+    :param role: 用于权限判断的用户角色标识，类型为 ``str``。
+    :return: 返回获取角色`label`得到的结果，返回类型为 ``str``。
+    """
     return ROLE_LABELS.get(role, role or "未知")
 
 
 def status_label(status: str) -> str:
+    """获取状态`label`。
+
+    :param status: 函数处理所需的“获取状态”数据，类型为 ``str``。
+    :return: 返回获取状态`label`得到的结果，返回类型为 ``str``。
+    """
     return STATUS_LABELS.get(status, status or "未知")
 
 
 def load_history_into_chat() -> None:
+    """加载历史记录`into`处理对话。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     if st.session_state.messages_loaded_for == st.session_state.user_id:
         return
     try:
@@ -175,6 +217,10 @@ def load_history_into_chat() -> None:
 
 
 def render_ticket_suggestion() -> None:
+    """渲染工单`suggestion`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     suggestion = st.session_state.get("pending_ticket_suggestion")
     if not suggestion:
         return
@@ -199,6 +245,10 @@ def render_ticket_suggestion() -> None:
 
 
 def render_sidebar() -> str:
+    """渲染侧边栏。
+
+    :return: 返回渲染侧边栏得到的结果，返回类型为 ``str``。
+    """
     with st.sidebar:
         st.subheader("服务")
         st.session_state.api_base_url = st.text_input("接口地址", value=st.session_state.api_base_url)
@@ -230,6 +280,10 @@ def render_sidebar() -> str:
 
 
 def render_login() -> None:
+    """渲染执行登录。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     page_title("Knowledge Agent", "输入账号密码后进入问答与工单演示。")
     if is_logged_in():
         st.success(f"已登录：{st.session_state.username} / {role_label(st.session_state.role)}")
@@ -272,6 +326,10 @@ def render_login() -> None:
 
 
 def render_auth_gate() -> bool:
+    """渲染认证`gate`。
+
+    :return: 返回渲染认证`gate`得到的结果，返回类型为 ``bool``。
+    """
     if is_logged_in():
         return True
     st.warning("请先登录。")
@@ -279,6 +337,10 @@ def render_auth_gate() -> bool:
 
 
 def render_chat() -> None:
+    """渲染处理对话。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     page_title("对话", "流式接收工具事件和最终答复。")
     if not render_auth_gate():
         return
@@ -341,6 +403,11 @@ def render_chat() -> None:
 
 
 def render_tool_events(events: list[dict[str, Any]]) -> None:
+    """渲染工具`events`。
+
+    :param events: 函数处理所需的“`events`”数据，类型为 ``list[dict[str, Any]]``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     if not events:
         return
     st.markdown("#### 工具调用过程")
@@ -349,6 +416,10 @@ def render_tool_events(events: list[dict[str, Any]]) -> None:
 
 
 def render_chat_history() -> None:
+    """渲染处理对话历史记录。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     page_title("对话记录", "查看当前账号以前的问答记录。")
     if not render_auth_gate():
         return
@@ -390,6 +461,10 @@ def render_chat_history() -> None:
 
 
 def render_tickets() -> None:
+    """渲染`tickets`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     caption = "管理员可查看并管理全部工单。" if is_admin() else "当前用户只能查看自己的咨询工单。"
     page_title("工单列表", caption)
     if not render_auth_gate():
@@ -476,6 +551,10 @@ def render_tickets() -> None:
 
 
 def render_upload() -> None:
+    """渲染上传。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     page_title("文档上传", "管理员上传文档后触发知识库入库。")
     if not render_auth_gate():
         return
@@ -529,6 +608,10 @@ def render_upload() -> None:
 
 
 def render_accounts() -> None:
+    """渲染`accounts`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     page_title("账号管理", "管理员创建账号；用户可修改自己的密码。")
     if not render_auth_gate():
         return
@@ -636,6 +719,10 @@ def render_accounts() -> None:
 
 
 def main() -> None:
+    """执行当前模块的主流程并协调各项处理步骤。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     init_state()
     page = render_sidebar()
     if page == "登录":
@@ -653,6 +740,10 @@ def main() -> None:
 
 
 def _running_in_streamlit() -> bool:
+    """`running``in``streamlit`。
+
+    :return: 返回`running``in``streamlit`得到的结果，返回类型为 ``bool``。
+    """
     try:
         from streamlit.runtime.scriptrunner import get_script_run_ctx
 
@@ -665,6 +756,10 @@ def _running_in_streamlit() -> bool:
 
 
 def _launch_with_streamlit() -> None:
+    """`launch``with``streamlit`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     app_path = str(Path(__file__).resolve())
     os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
     os.execv(

@@ -18,6 +18,11 @@ QUESTIONS = [
 
 
 def main() -> None:
+    """执行当前模块的主流程并协调各项处理步骤。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     documents = load_documents(DATAS_DIR, enable_ocr=True)
     if not documents:
         raise RuntimeError(f"未找到可入库文档: {DATAS_DIR}")
@@ -62,6 +67,11 @@ def main() -> None:
 
 
 def _verify_reranker_top1() -> None:
+    """验证`reranker``top1`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     chunks = [
         DocumentChunk(id="irrelevant", content="办公用品采购审批流程。", metadata={"score": 0.95}),
         DocumentChunk(id="relevant", content="员工差旅报销标准和交通费报销要求。", metadata={"score": 0.3}),
@@ -72,6 +82,11 @@ def _verify_reranker_top1() -> None:
 
 
 def _console_safe(text: str) -> str:
+    """`console`安全地处理。
+
+    :param text: 需要校验、解析或转换的文本，类型为 ``str``。
+    :return: 返回`console`安全地处理得到的结果，返回类型为 ``str``。
+    """
     return text.encode("gbk", errors="ignore").decode("gbk")
 
 

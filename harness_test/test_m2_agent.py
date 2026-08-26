@@ -7,6 +7,12 @@ from fastapi.testclient import TestClient
 
 
 def _client(tmp_path: Path, monkeypatch):
+    """客户端。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录，类型为 ``Path``。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 返回客户端得到的处理结果；具体类型由实际执行分支决定。
+    """
     monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "app.db"))
     monkeypatch.setenv("AGNES_API_KEY", "test-key")
     monkeypatch.setenv("AGNES_BASE_URL", "https://example.test/v1")
@@ -23,6 +29,12 @@ def _client(tmp_path: Path, monkeypatch):
 
 
 def test_agnes_config_is_lazy_and_has_expected_defaults(monkeypatch):
+    """验证`agnes`配置判断`lazy``and``has``expected``defaults`。
+
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :raises AssertionError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     monkeypatch.delenv("AGNES_API_KEY", raising=False)
     monkeypatch.setenv("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1")
     monkeypatch.setenv("AGNES_MODEL", "agnes-2.0-flash")
@@ -46,6 +58,12 @@ def test_agnes_config_is_lazy_and_has_expected_defaults(monkeypatch):
 
 
 def test_register_login_chat_ticket_and_rbac(tmp_path, monkeypatch):
+    """验证注册执行登录处理对话工单`and``rbac`。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     import agent_server.graph_flow.graph_nodes as graph_nodes
@@ -102,6 +120,12 @@ def test_register_login_chat_ticket_and_rbac(tmp_path, monkeypatch):
 
 
 def test_sse_stream_returns_tool_events(tmp_path, monkeypatch):
+    """验证`sse`流式处理`returns`工具`events`。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     import agent_server.graph_flow.graph_nodes as graph_nodes

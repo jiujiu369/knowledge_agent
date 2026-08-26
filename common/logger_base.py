@@ -12,6 +12,12 @@ LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
 
 
 def get_logger(name: str = "knowledge_agent", log_dir: str | Path | None = None) -> logging.Logger:
+    """获取`logger`。
+
+    :param name: 目标配置项、日志器或资源的名称，类型为 ``str``。
+    :param log_dir: 函数处理所需的“记录`dir`”数据，类型为 ``str | Path | None``。
+    :return: 返回获取`logger`得到的结果，返回类型为 ``logging.Logger``。
+    """
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger

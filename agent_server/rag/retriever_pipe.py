@@ -21,6 +21,10 @@ STOPWORDS = {"什么", "多少", "哪些", "怎么", "如何", "是否", "有哪
 
 @lru_cache(maxsize=1)
 def get_corpus() -> tuple[list[DocumentChunk], list[dict]]:
+    """获取检索语料。
+
+    :return: 返回获取检索语料得到的结果，返回类型为 ``tuple[list[DocumentChunk], list[dict]]``。
+    """
     documents = load_documents(DATAS_DIR, enable_ocr=True)
     chunks: list[DocumentChunk] = []
     stats: list[dict] = []
@@ -39,6 +43,11 @@ def get_corpus() -> tuple[list[DocumentChunk], list[dict]]:
 
 
 def rebuild_index(source_dir: str | Path = DATAS_DIR) -> tuple[list[DocumentChunk], list[dict], str | None]:
+    """重建检索索引。
+
+    :param source_dir: 函数处理所需的“源文件`dir`”数据，类型为 ``str | Path``。
+    :return: 返回重建检索索引得到的结果，返回类型为 ``tuple[list[DocumentChunk], list[dict], str | None]``。
+    """
     documents = load_documents(source_dir, enable_ocr=True)
     chunks: list[DocumentChunk] = []
     stats: list[dict] = []
@@ -65,6 +74,12 @@ def rebuild_index(source_dir: str | Path = DATAS_DIR) -> tuple[list[DocumentChun
 
 
 def retrieve(query: str, top_k: int = 5) -> list[RetrievalResult]:
+    """检索。
+
+    :param query: 用户输入或检索使用的查询文本，类型为 ``str``。
+    :param top_k: 函数处理所需的“`top``k`”数据，类型为 ``int``。
+    :return: 返回检索得到的结果，返回类型为 ``list[RetrievalResult]``。
+    """
     top_k = max(top_k, 1)
     store = RagVectorStore()
     vector_chunks = store.query(query, top_k=max(top_k * 3, 10))
@@ -102,6 +117,12 @@ def retrieve(query: str, top_k: int = 5) -> list[RetrievalResult]:
 
 
 def keyword_search(query: str, limit: int = 5) -> list[DocumentChunk]:
+    """`keyword``search`。
+
+    :param query: 用户输入或检索使用的查询文本，类型为 ``str``。
+    :param limit: 函数处理所需的“`limit`”数据，类型为 ``int``。
+    :return: 返回`keyword``search`得到的结果，返回类型为 ``list[DocumentChunk]``。
+    """
     chunks, _ = get_corpus()
     if not chunks:
         return []
@@ -130,12 +151,21 @@ def keyword_search(query: str, limit: int = 5) -> list[DocumentChunk]:
 
 @lru_cache(maxsize=1)
 def _keyword_index() -> tuple[list[list[str]], BM25Okapi]:
+    """`keyword`检索索引。
+
+    :return: 返回`keyword`检索索引得到的结果，返回类型为 ``tuple[list[list[str]], BM25Okapi]``。
+    """
     chunks, _ = get_corpus()
     tokenized = [_tokenize(chunk.content) for chunk in chunks]
     return tokenized, BM25Okapi(tokenized or [[""]])
 
 
 def _tokenize(text: str) -> list[str]:
+    """分词。
+
+    :param text: 需要校验、解析或转换的文本，类型为 ``str``。
+    :return: 返回分词得到的结果，返回类型为 ``list[str]``。
+    """
     tokens = [token.strip().lower() for token in jieba.lcut(text) if token.strip()]
     tokens.extend(re.findall(r"[a-zA-Z0-9]+", text.lower()))
     return [
@@ -146,6 +176,12 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _contains_score(query: str, content: str) -> float:
+    """`contains`计算评分。
+
+    :param query: 用户输入或检索使用的查询文本，类型为 ``str``。
+    :param content: 需要处理或写入的文本内容，类型为 ``str``。
+    :return: 返回`contains`计算评分得到的结果，返回类型为 ``float``。
+    """
     query_terms = [term for term in _tokenize(query) if len(term) >= 2]
     if not query_terms:
         return 0.0
@@ -155,6 +191,12 @@ def _contains_score(query: str, content: str) -> float:
 
 
 def _threshold_filter(query: str, ranked: list[tuple[DocumentChunk, float]]) -> list[tuple[DocumentChunk, float]]:
+    """`threshold`过滤。
+
+    :param query: 用户输入或检索使用的查询文本，类型为 ``str``。
+    :param ranked: 函数处理所需的“`ranked`”数据，类型为 ``list[tuple[DocumentChunk, float]]``。
+    :return: 返回`threshold`过滤得到的结果，返回类型为 ``list[tuple[DocumentChunk, float]]``。
+    """
     filtered: list[tuple[DocumentChunk, float]] = []
     for chunk, score in ranked:
         retrieval = chunk.metadata.get("retrieval")
@@ -170,4 +212,9 @@ def _threshold_filter(query: str, ranked: list[tuple[DocumentChunk, float]]) -> 
 
 
 def _keyword_threshold(text: str) -> float:
+    """`keyword``threshold`。
+
+    :param text: 需要校验、解析或转换的文本，类型为 ``str``。
+    :return: 返回`keyword``threshold`得到的结果，返回类型为 ``float``。
+    """
     return 0.34 if len(text) > 80 else 0.5

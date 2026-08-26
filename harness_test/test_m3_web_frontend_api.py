@@ -2,6 +2,10 @@ from __future__ import annotations
 
 
 def test_parse_sse_events_handles_named_events_and_json_data():
+    """验证解析`sse``events``handles``named``events``and``json`数据。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from web.frontend_api import parse_sse_events
 
     raw_lines = [
@@ -22,6 +26,10 @@ def test_parse_sse_events_handles_named_events_and_json_data():
 
 
 def test_describe_tool_event_maps_backend_tools_to_chinese_status():
+    """验证生成说明工具事件`maps`后端服务`tools``to``chinese`获取状态。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from web.frontend_api import describe_tool_event
 
     assert describe_tool_event({"tool": "identity_check", "status": "ok"}) == "已确认当前登录身份"
@@ -32,6 +40,10 @@ def test_describe_tool_event_maps_backend_tools_to_chinese_status():
 
 
 def test_localize_error_message_translates_common_backend_errors():
+    """验证本地化错误信息消息`translates``common`后端服务`errors`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from web.frontend_api import localize_error_message
 
     assert localize_error_message("invalid username or password") == "账号或密码错误"
@@ -40,6 +52,10 @@ def test_localize_error_message_translates_common_backend_errors():
 
 
 def test_page_param_selects_valid_sidebar_page_without_changing_invalid_values():
+    """验证页面`param``selects``valid`侧边栏页面`without``changing``invalid``values`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from web.frontend_api import resolve_page
 
     assert resolve_page("登录", "工单") == "工单"
@@ -48,12 +64,21 @@ def test_page_param_selects_valid_sidebar_page_without_changing_invalid_values()
 
 
 def test_response_data_formats_backend_errors_in_chinese():
+    """验证响应数据`formats`后端服务`errors``in``chinese`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :raises AssertionError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     from web.frontend_api import response_data
 
     class FakeResponse:
         status_code = 401
 
         def json(self):
+            """`json`。
+
+            :return: 返回`json`得到的处理结果；具体类型由实际执行分支决定。
+            """
             return {"code": "error", "message": "invalid username or password", "data": None}
 
     try:
@@ -65,6 +90,10 @@ def test_response_data_formats_backend_errors_in_chinese():
 
 
 def test_local_launcher_can_parse_backend_port_pids():
+    """验证`local`本地启动器`can`解析后端服务端口`pids`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from web.local_launcher import parse_netstat_pids
 
     output = """

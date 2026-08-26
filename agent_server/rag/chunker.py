@@ -19,6 +19,14 @@ def chunk_blocks(
     chunk_size: int = 500,
     overlap: int = 50,
 ) -> list[DocumentChunk]:
+    """切分`blocks`。
+
+    :param blocks: 函数处理所需的“`blocks`”数据，类型为 ``list[DocumentBlock]``。
+    :param chunk_size: 函数处理所需的“切分`size`”数据，类型为 ``int``。
+    :param overlap: 函数处理所需的“`overlap`”数据，类型为 ``int``。
+    :return: 返回切分`blocks`得到的结果，返回类型为 ``list[DocumentChunk]``。
+    :raises ValueError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
     if overlap < 0 or overlap >= chunk_size:
@@ -54,6 +62,14 @@ def chunk_blocks(
 
 
 def _make_chunk(block: DocumentBlock, content: str, block_index: int, part_index: int) -> DocumentChunk:
+    """创建切分。
+
+    :param block: 函数处理所需的“内容块”数据，类型为 ``DocumentBlock``。
+    :param content: 需要处理或写入的文本内容，类型为 ``str``。
+    :param block_index: 函数处理所需的“内容块检索索引”数据，类型为 ``int``。
+    :param part_index: 函数处理所需的“`part`检索索引”数据，类型为 ``int``。
+    :return: 返回创建切分得到的结果，返回类型为 ``DocumentChunk``。
+    """
     metadata = {
         "source_path": block.source_path,
         "page": block.page,

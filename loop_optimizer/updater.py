@@ -7,6 +7,12 @@ from loop_optimizer.models import Finding, OutputArtifacts
 
 
 def write_outputs(findings: list[Finding], output_dir: str | Path) -> OutputArtifacts:
+    """写入`outputs`。
+
+    :param findings: 函数处理所需的“`findings`”数据，类型为 ``list[Finding]``。
+    :param output_dir: 函数处理所需的“输出`dir`”数据，类型为 ``str | Path``。
+    :return: 返回写入`outputs`得到的结果，返回类型为 ``OutputArtifacts``。
+    """
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     bad_sample_csv = root / "bad_sample.csv"
@@ -23,6 +29,12 @@ def write_outputs(findings: list[Finding], output_dir: str | Path) -> OutputArti
 
 
 def _write_bad_samples(path: Path, findings: list[Finding]) -> None:
+    """写入`bad``samples`。
+
+    :param path: 目标文件或目录路径，类型为 ``Path``。
+    :param findings: 函数处理所需的“`findings`”数据，类型为 ``list[Finding]``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     with path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(
             handle,
@@ -52,6 +64,11 @@ def _write_bad_samples(path: Path, findings: list[Finding]) -> None:
 
 
 def _render_report(findings: list[Finding]) -> str:
+    """渲染`report`。
+
+    :param findings: 函数处理所需的“`findings`”数据，类型为 ``list[Finding]``。
+    :return: 返回渲染`report`得到的结果，返回类型为 ``str``。
+    """
     lines = [
         "# Loop 半自动优化建议",
         "",
@@ -82,6 +99,11 @@ def _render_report(findings: list[Finding]) -> str:
 
 
 def _render_prompt_diff(findings: list[Finding]) -> str:
+    """渲染提示词`diff`。
+
+    :param findings: 函数处理所需的“`findings`”数据，类型为 ``list[Finding]``。
+    :return: 返回渲染提示词`diff`得到的结果，返回类型为 ``str``。
+    """
     examples = [finding.question for finding in findings[:5]]
     example_lines = "\n".join(f"+- 低质量样本示例：{question}" for question in examples) or "+- 暂无低质量样本示例。"
     return (

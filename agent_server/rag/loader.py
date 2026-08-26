@@ -50,6 +50,11 @@ _OCR_FAILED = False
 
 
 def scan_source_files(source_dir: str | Path = DATAS_DIR) -> list[Path]:
+    """扫描源文件`files`。
+
+    :param source_dir: 函数处理所需的“源文件`dir`”数据，类型为 ``str | Path``。
+    :return: 返回扫描源文件`files`得到的结果，返回类型为 ``list[Path]``。
+    """
     root = Path(source_dir)
     if not root.exists():
         return []
@@ -67,6 +72,12 @@ def scan_source_files(source_dir: str | Path = DATAS_DIR) -> list[Path]:
 
 
 def load_documents(source_dir: str | Path = DATAS_DIR, enable_ocr: bool = True) -> list[LoadedDocument]:
+    """加载`documents`。
+
+    :param source_dir: 函数处理所需的“源文件`dir`”数据，类型为 ``str | Path``。
+    :param enable_ocr: 函数处理所需的“`enable`OCR”数据，类型为 ``bool``。
+    :return: 返回加载`documents`得到的结果，返回类型为 ``list[LoadedDocument]``。
+    """
     loaded: list[LoadedDocument] = []
     for path in scan_source_files(source_dir):
         try:
@@ -86,6 +97,12 @@ def load_documents(source_dir: str | Path = DATAS_DIR, enable_ocr: bool = True) 
 
 
 def load_pdf(path: str | Path, enable_ocr: bool = True) -> LoadedDocument:
+    """加载`pdf`。
+
+    :param path: 目标文件或目录路径，类型为 ``str | Path``。
+    :param enable_ocr: 函数处理所需的“`enable`OCR”数据，类型为 ``bool``。
+    :return: 返回加载`pdf`得到的结果，返回类型为 ``LoadedDocument``。
+    """
     source = Path(path)
     blocks: list[DocumentBlock] = []
 
@@ -106,6 +123,13 @@ def load_pdf(path: str | Path, enable_ocr: bool = True) -> LoadedDocument:
 
 
 def load_docx(path: str | Path, enable_ocr: bool = True, original_path: Path | None = None) -> LoadedDocument:
+    """加载`docx`。
+
+    :param path: 目标文件或目录路径，类型为 ``str | Path``。
+    :param enable_ocr: 函数处理所需的“`enable`OCR”数据，类型为 ``bool``。
+    :param original_path: 函数处理所需的“`original`路径”数据，类型为 ``Path | None``。
+    :return: 返回加载`docx`得到的结果，返回类型为 ``LoadedDocument``。
+    """
     source = Path(original_path or path)
     doc = Document(path)
     blocks: list[DocumentBlock] = []
@@ -128,6 +152,11 @@ def load_docx(path: str | Path, enable_ocr: bool = True, original_path: Path | N
 
 
 def table_to_markdown(rows: Iterable[Iterable[Any]]) -> str:
+    """转换表格`to``markdown`。
+
+    :param rows: 需要写入、转换或聚合的多行数据，类型为 ``Iterable[Iterable[Any]]``。
+    :return: 返回转换表格`to``markdown`得到的结果，返回类型为 ``str``。
+    """
     cleaned = [[" ".join(str(cell or "").split()) for cell in row] for row in rows]
     cleaned = [row for row in cleaned if any(row)]
     if not cleaned:
@@ -147,6 +176,11 @@ def table_to_markdown(rows: Iterable[Iterable[Any]]) -> str:
 
 
 def convert_doc_to_docx(path: Path) -> Path | None:
+    """转换知识文档`to``docx`。
+
+    :param path: 目标文件或目录路径，类型为 ``Path``。
+    :return: 返回转换知识文档`to``docx`得到的结果，返回类型为 ``Path | None``。
+    """
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if soffice is None:
         LOGGER.warning("Cannot convert .doc because soffice/libreoffice is not on PATH: %s", path)
@@ -168,6 +202,11 @@ def convert_doc_to_docx(path: Path) -> Path | None:
 
 
 def _extract_pdf_image_blocks(path: Path) -> list[DocumentBlock]:
+    """提取`pdf`图片`blocks`。
+
+    :param path: 目标文件或目录路径，类型为 ``Path``。
+    :return: 返回提取`pdf`图片`blocks`得到的结果，返回类型为 ``list[DocumentBlock]``。
+    """
     blocks: list[DocumentBlock] = []
     with fitz.open(path) as doc:
         for page_index in range(len(doc)):
@@ -194,6 +233,12 @@ def _extract_pdf_image_blocks(path: Path) -> list[DocumentBlock]:
 
 
 def _extract_docx_image_blocks(path: Path, source_path: Path) -> list[DocumentBlock]:
+    """提取`docx`图片`blocks`。
+
+    :param path: 目标文件或目录路径，类型为 ``Path``。
+    :param source_path: 函数处理所需的“源文件路径”数据，类型为 ``Path``。
+    :return: 返回提取`docx`图片`blocks`得到的结果，返回类型为 ``list[DocumentBlock]``。
+    """
     blocks: list[DocumentBlock] = []
     with zipfile.ZipFile(path) as archive:
         media_names = [name for name in archive.namelist() if name.startswith("word/media/")]
@@ -215,6 +260,12 @@ def _extract_docx_image_blocks(path: Path, source_path: Path) -> list[DocumentBl
 
 
 def ocr_image_bytes(payload: bytes, ext: str = "png") -> str:
+    """OCR图片`bytes`。
+
+    :param payload: 函数处理所需的“`payload`”数据，类型为 ``bytes``。
+    :param ext: 函数处理所需的“`ext`”数据，类型为 ``str``。
+    :return: 返回OCR图片`bytes`得到的结果，返回类型为 ``str``。
+    """
     suffix = "." + ext.lower().lstrip(".")
     if suffix == ".emf":
         vector_text = extract_vector_image_text(payload)
@@ -231,6 +282,10 @@ def ocr_image_bytes(payload: bytes, ext: str = "png") -> str:
 
 
 def vlm_available() -> bool:
+    """视觉语言模型`available`。
+
+    :return: 返回视觉语言模型`available`得到的结果，返回类型为 ``bool``。
+    """
     if not VLM_MODEL_DIR.exists():
         return False
     has_required = all((VLM_MODEL_DIR / name).exists() for name in VLM_REQUIRED_FILES)
@@ -246,11 +301,19 @@ def vlm_available() -> bool:
 
 
 def vlm_enabled() -> bool:
+    """视觉语言模型`enabled`。
+
+    :return: 返回视觉语言模型`enabled`得到的结果，返回类型为 ``bool``。
+    """
     value = os.getenv("VLM_ENABLED", "true").strip().lower()
     return value in {"1", "true", "yes", "on"} and vlm_available() and _module_available("bitsandbytes")
 
 
 def vlm_status() -> dict[str, object]:
+    """视觉语言模型获取状态。
+
+    :return: 返回视觉语言模型获取状态得到的结果，返回类型为 ``dict[str, object]``。
+    """
     available = vlm_available()
     bitsandbytes_available = _module_available("bitsandbytes")
     skip_reason = None
@@ -270,6 +333,10 @@ def vlm_status() -> dict[str, object]:
 
 
 def build_vlm_quantization_config() -> Any:
+    """构建视觉语言模型`quantization`配置。
+
+    :return: 返回构建视觉语言模型`quantization`配置得到的结果，返回类型为 ``Any``。
+    """
     try:
         from transformers import BitsAndBytesConfig
 
@@ -279,12 +346,25 @@ def build_vlm_quantization_config() -> Any:
 
 
 def enhance_image_text(payload: bytes, ext: str = "png", ocr_text: str = "") -> str:
+    """增强图片文本。
+
+    :param payload: 函数处理所需的“`payload`”数据，类型为 ``bytes``。
+    :param ext: 函数处理所需的“`ext`”数据，类型为 ``str``。
+    :param ocr_text: 函数处理所需的“OCR文本”数据，类型为 ``str``。
+    :return: 返回增强图片文本得到的结果，返回类型为 ``str``。
+    """
     caption = caption_image_with_vlm(payload, ext) if vlm_enabled() else ""
     parts = [part for part in (ocr_text.strip(), caption.strip()) if part]
     return " / ".join(_dedupe(parts))
 
 
 def caption_image_with_vlm(payload: bytes, ext: str = "png") -> str:
+    """生成说明文本图片`with`视觉语言模型。
+
+    :param payload: 函数处理所需的“`payload`”数据，类型为 ``bytes``。
+    :param ext: 函数处理所需的“`ext`”数据，类型为 ``str``。
+    :return: 返回生成说明文本图片`with`视觉语言模型得到的结果，返回类型为 ``str``。
+    """
     if not vlm_enabled():
         return ""
     try:
@@ -309,6 +389,12 @@ def caption_image_with_vlm(payload: bytes, ext: str = "png") -> str:
 
 
 def _apply_vlm_chat_template(processor: Any, messages: list[dict[str, Any]]) -> str:
+    """应用视觉语言模型处理对话`template`。
+
+    :param processor: 函数处理所需的“`processor`”数据，类型为 ``Any``。
+    :param messages: 函数处理所需的“`messages`”数据，类型为 ``list[dict[str, Any]]``。
+    :return: 返回应用视觉语言模型处理对话`template`得到的结果，返回类型为 ``str``。
+    """
     template_kwargs = {"tokenize": False, "add_generation_prompt": True}
     if hasattr(processor, "apply_chat_template"):
         try:
@@ -331,6 +417,11 @@ def _apply_vlm_chat_template(processor: Any, messages: list[dict[str, Any]]) -> 
 
 @lru_cache(maxsize=1)
 def get_vlm_model_and_processor() -> tuple[Any, Any]:
+    """获取视觉语言模型模型`and``processor`。
+
+    :return: 返回获取视觉语言模型模型`and``processor`得到的结果，返回类型为 ``tuple[Any, Any]``。
+    :raises FileNotFoundError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     if not vlm_available():
         raise FileNotFoundError(f"Local VLM model not found or incomplete: {VLM_MODEL_DIR}")
     from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
@@ -351,6 +442,11 @@ def get_vlm_model_and_processor() -> tuple[Any, Any]:
 
 
 def ocr_image_file(path: str | Path) -> str:
+    """OCR图片文件。
+
+    :param path: 目标文件或目录路径，类型为 ``str | Path``。
+    :return: 返回OCR图片文件得到的结果，返回类型为 ``str``。
+    """
     global _OCR_FAILED
     if _OCR_FAILED:
         return ""
@@ -366,6 +462,10 @@ def ocr_image_file(path: str | Path) -> str:
 
 
 def get_ocr_engine() -> Any:
+    """获取OCR`engine`。
+
+    :return: 返回获取OCR`engine`得到的结果，返回类型为 ``Any``。
+    """
     global _OCR_ENGINE
     if _OCR_ENGINE is None:
         cache_dir = PROJECT_ROOT / ".cache" / "paddle"
@@ -387,6 +487,11 @@ def get_ocr_engine() -> Any:
 
 
 def extract_vector_image_text(payload: bytes) -> str:
+    """提取向量图片文本。
+
+    :param payload: 函数处理所需的“`payload`”数据，类型为 ``bytes``。
+    :return: 返回提取向量图片文本得到的结果，返回类型为 ``str``。
+    """
     texts: list[str] = []
     for encoding in ("utf-16le", "gbk", "utf-8"):
         decoded = payload.decode(encoding, errors="ignore")
@@ -396,6 +501,11 @@ def extract_vector_image_text(payload: bytes) -> str:
 
 
 def _meaningful_vector_text(text: str) -> bool:
+    """`meaningful`向量文本。
+
+    :param text: 需要校验、解析或转换的文本，类型为 ``str``。
+    :return: 返回`meaningful`向量文本得到的结果，返回类型为 ``bool``。
+    """
     if len(text.strip()) < 2:
         return False
     chinese_count = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
@@ -403,6 +513,11 @@ def _meaningful_vector_text(text: str) -> bool:
 
 
 def _collect_ocr_text(node: Any) -> list[str]:
+    """收集OCR文本。
+
+    :param node: 待分析的 Python 函数语法树节点，类型为 ``Any``。
+    :return: 返回收集OCR文本得到的结果，返回类型为 ``list[str]``。
+    """
     texts: list[str] = []
     if node is None:
         return texts
@@ -436,6 +551,15 @@ def _block(
     page: int | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> DocumentBlock:
+    """内容块。
+
+    :param source: 函数处理所需的“源文件”数据，类型为 ``Path``。
+    :param text: 需要校验、解析或转换的文本，类型为 ``str``。
+    :param block_type: 函数处理所需的“内容块`type`”数据，类型为 ``str``。
+    :param page: 函数处理所需的“页面”数据，类型为 ``int | None``。
+    :param metadata: 函数处理所需的“元数据”数据，类型为 ``dict[str, Any] | None``。
+    :return: 返回内容块得到的结果，返回类型为 ``DocumentBlock``。
+    """
     return DocumentBlock(
         source_path=str(source),
         page=page,
@@ -446,6 +570,12 @@ def _block(
 
 
 def _loaded(source: Path, blocks: list[DocumentBlock]) -> LoadedDocument:
+    """`loaded`。
+
+    :param source: 函数处理所需的“源文件”数据，类型为 ``Path``。
+    :param blocks: 函数处理所需的“`blocks`”数据，类型为 ``list[DocumentBlock]``。
+    :return: 返回`loaded`得到的结果，返回类型为 ``LoadedDocument``。
+    """
     return LoadedDocument(
         source_path=str(source),
         blocks=blocks,
@@ -456,6 +586,11 @@ def _loaded(source: Path, blocks: list[DocumentBlock]) -> LoadedDocument:
 
 
 def _sha256(path: Path) -> str:
+    """`sha256`。
+
+    :param path: 目标文件或目录路径，类型为 ``Path``。
+    :return: 返回`sha256`得到的结果，返回类型为 ``str``。
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -464,6 +599,11 @@ def _sha256(path: Path) -> str:
 
 
 def _dedupe(items: Iterable[str]) -> list[str]:
+    """`dedupe`。
+
+    :param items: 需要批量处理的数据项，类型为 ``Iterable[str]``。
+    :return: 返回`dedupe`得到的结果，返回类型为 ``list[str]``。
+    """
     seen: set[str] = set()
     result: list[str] = []
     for item in items:
@@ -475,6 +615,11 @@ def _dedupe(items: Iterable[str]) -> list[str]:
 
 
 def _module_available(module_name: str) -> bool:
+    """`module``available`。
+
+    :param module_name: 函数处理所需的“`module``name`”数据，类型为 ``str``。
+    :return: 返回`module``available`得到的结果，返回类型为 ``bool``。
+    """
     try:
         __import__(module_name)
         return True

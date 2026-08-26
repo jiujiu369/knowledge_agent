@@ -24,6 +24,12 @@ FRONTEND_PORT = 8501
 
 
 def parse_netstat_pids(output: str, port: int) -> set[int]:
+    """解析`netstat``pids`。
+
+    :param output: 函数处理所需的“输出”数据，类型为 ``str``。
+    :param port: 服务监听或探测使用的 TCP 端口号，类型为 ``int``。
+    :return: 返回解析`netstat``pids`得到的结果，返回类型为 ``set[int]``。
+    """
     pids: set[int] = set()
     suffix = f":{port}"
     for line in output.splitlines():
@@ -40,6 +46,10 @@ def parse_netstat_pids(output: str, port: int) -> set[int]:
 
 class LocalLauncher:
     def __init__(self) -> None:
+        """初始化当前对象并保存后续操作所需的状态。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.root = Tk()
         self.root.title("Knowledge Agent 本地启动器")
         self.root.geometry("760x520")
@@ -55,6 +65,10 @@ class LocalLauncher:
         self.check_status()
 
     def _build_ui(self) -> None:
+        """构建界面。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         title = Label(self.root, text="Knowledge Agent 本地启动器", font=("Microsoft YaHei UI", 18, "bold"))
         title.pack(anchor="w", padx=18, pady=(16, 8))
 
@@ -92,17 +106,34 @@ class LocalLauncher:
         self._log("使用 .venv\\Scripts\\python.exe 启动服务。")
 
     def _log(self, message: str) -> None:
+        """记录。
+
+        :param message: 用户提交或系统生成的消息文本，类型为 ``str``。
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         timestamp = time.strftime("%H:%M:%S")
         self.log_box.insert(END, f"[{timestamp}] {message}\n")
         self.log_box.see(END)
 
     def run(self) -> None:
+        """运行。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.root.mainloop()
 
     def check_status(self) -> None:
+        """检查获取状态。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         threading.Thread(target=self._check_status_worker, daemon=True).start()
 
     def _check_status_worker(self) -> None:
+        """检查获取状态`worker`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         backend_ok = self._http_ok(f"{BACKEND_URL}/health")
         frontend_ok = self._port_open(BACKEND_HOST, FRONTEND_PORT)
         self.root.after(
@@ -114,11 +145,21 @@ class LocalLauncher:
         )
 
     def _set_status(self, backend: str, frontend: str) -> None:
+        """设置获取状态。
+
+        :param backend: 函数处理所需的“后端服务”数据，类型为 ``str``。
+        :param frontend: 函数处理所需的“前端服务”数据，类型为 ``str``。
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.backend_status.set(backend)
         self.frontend_status.set(frontend)
         self._log(f"{backend}；{frontend}")
 
     def start_backend(self) -> None:
+        """启动后端服务。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         if self._http_ok(f"{BACKEND_URL}/health"):
             self.backend_status.set("后端：已运行")
             self._log("后端已经在 8000 端口运行。")
@@ -126,6 +167,10 @@ class LocalLauncher:
         self._start_backend_process()
 
     def register_admin_dialog(self) -> None:
+        """注册管理员`dialog`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         username = simpledialog.askstring("注册管理员", "请输入管理员账号：", parent=self.root)
         if username is None:
             return
@@ -161,6 +206,12 @@ class LocalLauncher:
 
     @staticmethod
     def _create_local_admin(username: str, password: str) -> dict[str, str]:
+        """创建`local`管理员。
+
+        :param username: 用于定位账户的用户名，类型为 ``str``。
+        :param password: 函数处理所需的“密码”数据，类型为 ``str``。
+        :return: 返回创建`local`管理员得到的结果，返回类型为 ``dict[str, str]``。
+        """
         if str(PROJECT_ROOT) not in sys.path:
             sys.path.insert(0, str(PROJECT_ROOT))
         from agent_server.core.auth import register_user
@@ -169,9 +220,17 @@ class LocalLauncher:
         return {"username": str(user["username"])}
 
     def restart_backend(self) -> None:
+        """重启后端服务。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         threading.Thread(target=self._restart_backend_worker, daemon=True).start()
 
     def _restart_backend_worker(self) -> None:
+        """重启后端服务`worker`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.root.after(0, lambda: self.backend_status.set("后端：正在重启"))
         self.root.after(0, lambda: self._log("正在重启后端。"))
         self._stop_backend()
@@ -186,6 +245,10 @@ class LocalLauncher:
         self.root.after(0, self._start_backend_process)
 
     def _start_backend_process(self) -> None:
+        """启动后端服务进程。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         if not PYTHON_EXE.exists():
             messagebox.showerror("启动失败", f"找不到虚拟环境：{PYTHON_EXE}")
             return
@@ -213,6 +276,10 @@ class LocalLauncher:
         self._wait_for_backend()
 
     def _stop_backend(self) -> None:
+        """停止后端服务。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         stopped = False
         if self.backend_process and self.backend_process.poll() is None:
             self.backend_process.terminate()
@@ -242,6 +309,10 @@ class LocalLauncher:
             self.root.after(0, lambda: self._log("未发现需要停止的后端进程。"))
 
     def _backend_pids_from_port(self) -> set[int]:
+        """后端服务`pids``from`端口。
+
+        :return: 返回后端服务`pids``from`端口得到的结果，返回类型为 ``set[int]``。
+        """
         if os.name != "nt":
             return set()
         result = subprocess.run(
@@ -256,9 +327,17 @@ class LocalLauncher:
         return parse_netstat_pids(result.stdout, BACKEND_PORT)
 
     def _wait_for_backend(self) -> None:
+        """等待`for`后端服务。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         threading.Thread(target=self._wait_for_backend_worker, daemon=True).start()
 
     def _wait_for_backend_worker(self) -> None:
+        """等待`for`后端服务`worker`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         for _ in range(30):
             if self._http_ok(f"{BACKEND_URL}/health"):
                 self.root.after(0, lambda: self.backend_status.set("后端：已运行"))
@@ -269,6 +348,10 @@ class LocalLauncher:
         self.root.after(0, lambda: self._log("后端 30 秒内未就绪，请查看 docs\\logs\\backend.log"))
 
     def start_frontend(self) -> None:
+        """启动前端服务。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         if self._port_open(BACKEND_HOST, FRONTEND_PORT):
             self.frontend_status.set("前端：已运行")
             self._log("前端已经在 8501 端口运行。")
@@ -304,9 +387,17 @@ class LocalLauncher:
         self._wait_for_frontend()
 
     def _wait_for_frontend(self) -> None:
+        """等待`for`前端服务。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         threading.Thread(target=self._wait_for_frontend_worker, daemon=True).start()
 
     def _wait_for_frontend_worker(self) -> None:
+        """等待`for`前端服务`worker`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         for _ in range(30):
             if self._port_open(BACKEND_HOST, FRONTEND_PORT):
                 self.root.after(0, lambda: self.frontend_status.set("前端：已运行"))
@@ -318,6 +409,10 @@ class LocalLauncher:
         self.root.after(0, lambda: self._log("前端 30 秒内未就绪，请查看 docs\\logs\\frontend.log"))
 
     def stop_started_processes(self) -> None:
+        """停止`started``processes`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         stopped = False
         for name, process in (("前端", self.frontend_process),):
             if process and process.poll() is None:
@@ -333,10 +428,19 @@ class LocalLauncher:
         self.check_status()
 
     def _on_close(self) -> None:
+        """`on``close`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.root.destroy()
 
     @staticmethod
     def _http_ok(url: str) -> bool:
+        """`http`构造成功响应。
+
+        :param url: 函数处理所需的“`url`”数据，类型为 ``str``。
+        :return: 返回`http`构造成功响应得到的结果，返回类型为 ``bool``。
+        """
         try:
             with urllib.request.urlopen(url, timeout=2) as response:
                 return 200 <= response.status < 300
@@ -345,6 +449,12 @@ class LocalLauncher:
 
     @staticmethod
     def _port_open(host: str, port: int) -> bool:
+        """端口打开。
+
+        :param host: 函数处理所需的“`host`”数据，类型为 ``str``。
+        :param port: 服务监听或探测使用的 TCP 端口号，类型为 ``int``。
+        :return: 返回端口打开得到的结果，返回类型为 ``bool``。
+        """
         try:
             with socket.create_connection((host, port), timeout=2):
                 return True
@@ -353,6 +463,10 @@ class LocalLauncher:
 
     @staticmethod
     def _creation_flags() -> int:
+        """`creation``flags`。
+
+        :return: 返回`creation``flags`得到的结果，返回类型为 ``int``。
+        """
         if os.name != "nt":
             return 0
         return subprocess.CREATE_NO_WINDOW

@@ -4,6 +4,12 @@ from harness_test.fixture.app_client import auth_headers
 
 
 def _mock_retrieve(monkeypatch, items=None):
+    """`mock`检索。
+
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :param items: 需要批量处理的数据项；类型由调用方及当前处理场景决定。
+    :return: 返回`mock`检索得到的处理结果；具体类型由实际执行分支决定。
+    """
     from common.models import RetrievalResult
 
     results = items or [
@@ -21,6 +27,11 @@ def _mock_retrieve(monkeypatch, items=None):
 
 
 def test_auth_register_login_and_me(api_client):
+    """验证认证注册执行登录`and``me`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     headers = auth_headers(api_client, "alice")
 
     me = api_client.get("/api/auth/me", headers=headers)
@@ -33,6 +44,11 @@ def test_auth_register_login_and_me(api_client):
 
 
 def test_rbac_employee_and_admin_tool_visibility(api_client):
+    """验证`rbac``employee``and`管理员工具`visibility`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     employee_headers = auth_headers(api_client, "alice")
     admin_headers = auth_headers(api_client, "root", role="admin")
 
@@ -45,6 +61,12 @@ def test_rbac_employee_and_admin_tool_visibility(api_client):
 
 
 def test_rag_tool_returns_mocked_retrieval_results(api_client, monkeypatch):
+    """验证RAG 检索工具`returns``mocked``retrieval``results`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     expected = _mock_retrieve(monkeypatch)
     headers = auth_headers(api_client, "alice")
 
@@ -55,6 +77,11 @@ def test_rag_tool_returns_mocked_retrieval_results(api_client, monkeypatch):
 
 
 def test_tools_create_and_query_ticket(api_client):
+    """验证`tools`创建`and`查询工单。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     headers = auth_headers(api_client, "alice")
 
     created = api_client.post(
@@ -70,6 +97,12 @@ def test_tools_create_and_query_ticket(api_client):
 
 
 def test_graph_chat_suggests_ticket_and_saves_history(api_client, monkeypatch):
+    """验证LangGraph 工作流处理对话`suggests`工单`and``saves`历史记录。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     _mock_retrieve(monkeypatch)
     headers = auth_headers(api_client, "alice")
 
@@ -85,6 +118,12 @@ def test_graph_chat_suggests_ticket_and_saves_history(api_client, monkeypatch):
 
 
 def test_api_stream_chat_returns_tool_and_done_events(api_client, monkeypatch):
+    """验证API流式处理处理对话`returns`工具`and``done``events`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     _mock_retrieve(monkeypatch)
     headers = auth_headers(api_client, "alice")
 

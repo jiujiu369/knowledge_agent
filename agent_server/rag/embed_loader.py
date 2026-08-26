@@ -13,6 +13,12 @@ EXPECTED_EMBEDDING_DIM = 768
 
 @lru_cache(maxsize=1)
 def get_embedding_model() -> SentenceTransformer:
+    """获取嵌入模型模型。
+
+    :return: 返回获取嵌入模型模型得到的结果，返回类型为 ``SentenceTransformer``。
+    :raises FileNotFoundError: 当代码中对应的校验或操作失败条件成立时抛出。
+    :raises ValueError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     model_dir = Path(BGE_MODEL_PATH)
     if not model_dir.exists():
         raise FileNotFoundError(f"Local BGE model not found: {BGE_MODEL_PATH}")
@@ -31,6 +37,12 @@ def get_embedding_model() -> SentenceTransformer:
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
+    """生成向量`texts`。
+
+    :param texts: 函数处理所需的“`texts`”数据，类型为 ``list[str]``。
+    :return: 返回生成向量`texts`得到的结果，返回类型为 ``list[list[float]]``。
+    :raises ValueError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     if not texts:
         return []
     model = get_embedding_model()
@@ -47,4 +59,9 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
 
 def embed_query(query: str) -> list[float]:
+    """生成向量查询。
+
+    :param query: 用户输入或检索使用的查询文本，类型为 ``str``。
+    :return: 返回生成向量查询得到的结果，返回类型为 ``list[float]``。
+    """
     return embed_texts([query])[0]

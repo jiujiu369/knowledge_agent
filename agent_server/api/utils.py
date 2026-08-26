@@ -18,10 +18,20 @@ _REQUESTS: dict[str, deque[float]] = defaultdict(deque)
 
 
 def rate_limit_disabled() -> bool:
+    """`rate``limit``disabled`。
+
+    :return: 返回`rate``limit``disabled`得到的结果，返回类型为 ``bool``。
+    """
     return os.getenv("KNOWLEDGE_AGENT_DISABLE_RATE_LIMIT", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def ok(data: Any = None, message: str = "ok") -> dict[str, Any]:
+    """构造成功响应。
+
+    :param data: 函数处理所需的“数据”数据，类型为 ``Any``。
+    :param message: 用户提交或系统生成的消息文本，类型为 ``str``。
+    :return: 返回构造成功响应得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     return {"code": "ok", "message": message, "data": data}
 
 
@@ -31,10 +41,21 @@ class ChatRequest(BaseModel):
     @field_validator("message")
     @classmethod
     def message_valid(cls, value: str) -> str:
+        """消息`valid`。
+
+        :param value: 函数处理所需的“`value`”数据，类型为 ``str``。
+        :return: 返回消息`valid`得到的结果，返回类型为 ``str``。
+        """
         return validate_user_text(value)
 
 
 async def rate_limit_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    """`rate``limit``middleware`。
+
+    :param request: 包含认证、请求体及上下文信息的 HTTP 请求对象，类型为 ``Request``。
+    :param call_next: 函数处理所需的“调用`next`”数据，类型为 ``Callable[[Request], Awaitable[Response]]``。
+    :return: 返回`rate``limit``middleware`得到的结果，返回类型为 ``Response``。
+    """
     if rate_limit_disabled():
         return await call_next(request)
     client = request.client.host if request.client else "unknown"
@@ -49,6 +70,12 @@ async def rate_limit_middleware(request: Request, call_next: Callable[[Request],
 
 
 async def uniform_exception_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    """统一处理异常`middleware`。
+
+    :param request: 包含认证、请求体及上下文信息的 HTTP 请求对象，类型为 ``Request``。
+    :param call_next: 函数处理所需的“调用`next`”数据，类型为 ``Callable[[Request], Awaitable[Response]]``。
+    :return: 返回统一处理异常`middleware`得到的结果，返回类型为 ``Response``。
+    """
     try:
         response = await call_next(request)
     except HTTPException as exc:

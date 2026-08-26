@@ -9,6 +9,10 @@ class KnowledgeAgentUser(HttpUser):
     wait_time = between(0.05, 0.2)
 
     def on_start(self) -> None:
+        """`on`启动。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.username = f"u_{uuid.uuid4().hex[:16]}"
         self.password = "Passw0rd!"
         register = self.client.post(
@@ -32,6 +36,10 @@ class KnowledgeAgentUser(HttpUser):
 
     @task(6)
     def chat(self) -> None:
+        """处理对话。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.client.post(
             "/api/chat",
             json={"message": "差旅报销标准是什么"},
@@ -41,10 +49,18 @@ class KnowledgeAgentUser(HttpUser):
 
     @task(2)
     def list_tickets(self) -> None:
+        """查询列表`tickets`。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.client.get("/api/tickets", headers=self.headers, name="/api/tickets")
 
     @task(1)
     def query_ticket_tool(self) -> None:
+        """查询工单工具。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.client.post(
             "/api/tools/query_ticket_list",
             json={"mine_only": True},
@@ -54,4 +70,8 @@ class KnowledgeAgentUser(HttpUser):
 
     @task(1)
     def health(self) -> None:
+        """检查服务健康状态。
+
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.client.get("/health", name="/health")

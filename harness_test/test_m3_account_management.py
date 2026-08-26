@@ -7,6 +7,12 @@ from fastapi.testclient import TestClient
 
 
 def _client(tmp_path: Path, monkeypatch):
+    """客户端。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录，类型为 ``Path``。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 返回客户端得到的处理结果；具体类型由实际执行分支决定。
+    """
     monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "app.db"))
     monkeypatch.setenv("AGNES_API_KEY", "test-key")
     monkeypatch.setenv("AGNES_BASE_URL", "https://example.test/v1")
@@ -23,6 +29,12 @@ def _client(tmp_path: Path, monkeypatch):
 
 
 def test_admin_creates_user_with_default_password_and_user_changes_password(tmp_path, monkeypatch):
+    """验证管理员`creates`用户`with``default`密码`and`用户`changes`密码。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     client.post("/api/auth/register", json={"username": "root", "password": "Passw0rd!", "role": "admin"})
@@ -72,6 +84,12 @@ def test_admin_creates_user_with_default_password_and_user_changes_password(tmp_
 
 
 def test_employee_cannot_create_users(tmp_path, monkeypatch):
+    """验证`employee``cannot`创建`users`。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     client.post("/api/auth/register", json={"username": "bob", "password": "Passw0rd!", "role": "employee"})
@@ -88,6 +106,12 @@ def test_employee_cannot_create_users(tmp_path, monkeypatch):
 
 
 def test_admin_cannot_delete_or_reset_self(tmp_path, monkeypatch):
+    """验证管理员`cannot`删除`or`重置`self`。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     client.post("/api/auth/register", json={"username": "root", "password": "Passw0rd!", "role": "admin"})

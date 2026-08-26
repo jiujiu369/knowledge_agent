@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field, field_validator
 
 
 def validate_user_text(value: str) -> str:
+    """校验用户文本。
+
+    :param value: 函数处理所需的“`value`”数据，类型为 ``str``。
+    :return: 返回校验用户文本得到的结果，返回类型为 ``str``。
+    :raises ValueError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     text = " ".join(value.split())
     if not text:
         raise ValueError("input cannot be blank")
@@ -23,6 +29,11 @@ class DocRetrieveInput(BaseModel):
     @field_validator("query")
     @classmethod
     def query_valid(cls, value: str) -> str:
+        """查询`valid`。
+
+        :param value: 函数处理所需的“`value`”数据，类型为 ``str``。
+        :return: 返回查询`valid`得到的结果，返回类型为 ``str``。
+        """
         return validate_user_text(value)
 
 
@@ -33,6 +44,11 @@ class MatchSimilarTicketInput(BaseModel):
     @field_validator("query")
     @classmethod
     def query_valid(cls, value: str) -> str:
+        """查询`valid`。
+
+        :param value: 函数处理所需的“`value`”数据，类型为 ``str``。
+        :return: 返回查询`valid`得到的结果，返回类型为 ``str``。
+        """
         return validate_user_text(value)
 
 
@@ -44,6 +60,11 @@ class CreateConsultTicketInput(BaseModel):
     @field_validator("title", "content")
     @classmethod
     def text_valid(cls, value: str) -> str:
+        """文本`valid`。
+
+        :param value: 函数处理所需的“`value`”数据，类型为 ``str``。
+        :return: 返回文本`valid`得到的结果，返回类型为 ``str``。
+        """
         return validate_user_text(value)
 
 

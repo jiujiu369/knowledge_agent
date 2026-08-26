@@ -16,10 +16,18 @@ from loop_optimizer.updater import write_outputs
 
 
 def llm_eval_enabled() -> bool:
+    """大语言模型`eval``enabled`。
+
+    :return: 返回大语言模型`eval``enabled`得到的结果，返回类型为 ``bool``。
+    """
     return os.getenv("LLM_EVAL_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_args() -> argparse.Namespace:
+    """解析命令行参数。
+
+    :return: 返回解析命令行参数得到的结果，返回类型为 ``argparse.Namespace``。
+    """
     parser = argparse.ArgumentParser(description="Generate review-only loop optimization artifacts.")
     parser.add_argument("--logs-dir", default=str(PROJECT_ROOT / "agent_server" / "logs"))
     parser.add_argument("--output-dir", default=str(PROJECT_ROOT / "loop_optimizer" / "output"))
@@ -28,6 +36,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """执行当前模块的主流程并协调各项处理步骤。
+
+    :return: 返回执行当前模块的主流程得到的结果，返回类型为 ``int``。
+    """
     args = parse_args()
     samples = collect_samples(args.logs_dir, frequency_threshold=args.frequency_threshold)
     findings = aggregate_samples(samples)

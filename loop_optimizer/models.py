@@ -17,6 +17,13 @@ class QAEvent:
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any], source_file: str = "", line_number: int = 0) -> "QAEvent":
+        """`from``mapping`。
+
+        :param data: 函数处理所需的“数据”数据，类型为 ``dict[str, Any]``。
+        :param source_file: 函数处理所需的“源文件文件”数据，类型为 ``str``。
+        :param line_number: 函数处理所需的“`line``number`”数据，类型为 ``int``。
+        :return: 返回`from``mapping`得到的结果，返回类型为 ``'QAEvent'``。
+        """
         retrieval = data.get("retrieval") or []
         if not isinstance(retrieval, list):
             retrieval = []

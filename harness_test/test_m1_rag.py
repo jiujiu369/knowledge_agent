@@ -6,6 +6,10 @@ import pytest
 
 
 def test_loader_scans_supported_docs_and_ignores_storage():
+    """验证`loader``scans``supported``docs``and``ignores``storage`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag.loader import scan_source_files
 
     files = scan_source_files(Path("datas"))
@@ -18,6 +22,10 @@ def test_loader_scans_supported_docs_and_ignores_storage():
 
 
 def test_chunker_preserves_table_and_image_blocks():
+    """验证`chunker``preserves`转换表格`and`图片`blocks`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag.chunker import chunk_blocks
     from agent_server.rag.loader import DocumentBlock
 
@@ -46,6 +54,10 @@ def test_chunker_preserves_table_and_image_blocks():
 
 
 def test_embedding_config_uses_local_bge_path():
+    """验证嵌入模型配置`uses``local``bge`路径。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag.embed_loader import BGE_MODEL_PATH, EXPECTED_EMBEDDING_DIM
 
     assert BGE_MODEL_PATH == r"F:\code\knowledge_agent\models\bge-base-zh-v1.5"
@@ -53,6 +65,10 @@ def test_embedding_config_uses_local_bge_path():
 
 
 def test_retrieve_returns_retrieval_result_list_without_crashing():
+    """验证检索`returns``retrieval`结果查询列表`without``crashing`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag.retriever_pipe import retrieve
 
     results = retrieve("差旅报销上限多少", top_k=3)
@@ -62,6 +78,10 @@ def test_retrieve_returns_retrieval_result_list_without_crashing():
 
 
 def test_reranker_status_reports_local_model_state():
+    """验证`reranker`获取状态`reports``local`模型状态。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag import reranker
 
     status = reranker.reranker_status()
@@ -76,11 +96,21 @@ def test_reranker_status_reports_local_model_state():
 
 
 def test_reranker_reorders_candidates_when_enabled(monkeypatch):
+    """验证`reranker``reorders``candidates``when``enabled`。
+
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag import reranker
     from agent_server.rag.chunker import DocumentChunk
 
     class FakeReranker:
         def predict(self, pairs):
+            """`predict`。
+
+            :param pairs: 函数处理所需的“`pairs`”数据；类型由调用方及当前处理场景决定。
+            :return: 返回`predict`得到的处理结果；具体类型由实际执行分支决定。
+            """
             assert pairs[0][0] == "报销标准"
             return [0.1, 0.9]
 
@@ -98,6 +128,10 @@ def test_reranker_reorders_candidates_when_enabled(monkeypatch):
 
 
 def test_reranker_top1_improvement_is_skipped_without_local_model():
+    """验证`reranker``top1``improvement`判断`skipped``without``local`模型。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag import reranker
 
     if not reranker.reranker_available():
@@ -107,6 +141,10 @@ def test_reranker_top1_improvement_is_skipped_without_local_model():
 
 
 def test_vlm_status_and_4bit_config_are_explicit():
+    """验证视觉语言模型获取状态`and``4bit`配置`are``explicit`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag import loader
 
     status = loader.vlm_status()
@@ -120,6 +158,11 @@ def test_vlm_status_and_4bit_config_are_explicit():
 
 
 def test_vlm_semantic_caption_is_merged_with_ocr_text(monkeypatch):
+    """验证视觉语言模型`semantic`生成说明文本判断`merged``with`OCR文本。
+
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag import loader
 
     monkeypatch.setattr(loader, "vlm_enabled", lambda: True)
@@ -132,6 +175,11 @@ def test_vlm_semantic_caption_is_merged_with_ocr_text(monkeypatch):
 
 
 def test_vlm_caption_uses_tokenizer_chat_template_when_processor_lacks_one(monkeypatch):
+    """验证视觉语言模型生成说明文本`uses``tokenizer`处理对话`template``when``processor``lacks``one`。
+
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from io import BytesIO
 
     from PIL import Image
@@ -142,18 +190,39 @@ def test_vlm_caption_uses_tokenizer_chat_template_when_processor_lacks_one(monke
         shape = (1, 3)
 
         def to(self, device):
+            """`to`。
+
+            :param device: 函数处理所需的“`device`”数据；类型由调用方及当前处理场景决定。
+            :return: 返回`to`得到的处理结果；具体类型由实际执行分支决定。
+            """
             return self
 
     class FakeInputs(dict):
         def __init__(self):
+            """初始化当前对象并保存后续操作所需的状态。
+
+            :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+            """
             super().__init__({"input_ids": FakeTensor()})
 
     class FakeOutput:
         def __getitem__(self, key):
+            """按索引或键读取当前对象中的数据项。
+
+            :param key: 函数处理所需的“`key`”数据；类型由调用方及当前处理场景决定。
+            :return: 返回`getitem`得到的处理结果；具体类型由实际执行分支决定。
+            """
             return self
 
     class FakeTokenizer:
         def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+            """应用处理对话`template`。
+
+            :param messages: 函数处理所需的“`messages`”数据；类型由调用方及当前处理场景决定。
+            :param tokenize: 函数处理所需的“分词”数据；类型由调用方及当前处理场景决定。
+            :param add_generation_prompt: 函数处理所需的“`add``generation`提示词”数据；类型由调用方及当前处理场景决定。
+            :return: 返回应用处理对话`template`得到的处理结果；具体类型由实际执行分支决定。
+            """
             assert messages[0]["content"][0]["type"] == "image"
             return "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>描述图片<|im_end|>\n<|im_start|>assistant\n"
 
@@ -161,18 +230,37 @@ def test_vlm_caption_uses_tokenizer_chat_template_when_processor_lacks_one(monke
         tokenizer = FakeTokenizer()
 
         def __call__(self, text, images, return_tensors):
+            """以可调用对象方式处理输入并生成对应结果。
+
+            :param text: 需要校验、解析或转换的文本；类型由调用方及当前处理场景决定。
+            :param images: 函数处理所需的“`images`”数据；类型由调用方及当前处理场景决定。
+            :param return_tensors: 函数处理所需的“`return``tensors`”数据；类型由调用方及当前处理场景决定。
+            :return: 返回调用得到的处理结果；具体类型由实际执行分支决定。
+            """
             assert "<|image_pad|>" in text[0]
             assert len(images) == 1
             assert return_tensors == "pt"
             return FakeInputs()
 
         def batch_decode(self, generated, skip_special_tokens=True, clean_up_tokenization_spaces=False):
+            """`batch``decode`。
+
+            :param generated: 函数处理所需的“`generated`”数据；类型由调用方及当前处理场景决定。
+            :param skip_special_tokens: 函数处理所需的“`skip``special``tokens`”数据；类型由调用方及当前处理场景决定。
+            :param clean_up_tokenization_spaces: 函数处理所需的“清理`up``tokenization``spaces`”数据；类型由调用方及当前处理场景决定。
+            :return: 返回`batch``decode`得到的处理结果；具体类型由实际执行分支决定。
+            """
             return ["图中包含测试文字"]
 
     class FakeModel:
         device = "cpu"
 
         def generate(self, **inputs):
+            """`generate`。
+
+            :param inputs: 函数处理所需的“`inputs`”数据；类型由调用方及当前处理场景决定。
+            :return: 返回`generate`得到的处理结果；具体类型由实际执行分支决定。
+            """
             return FakeOutput()
 
     image = Image.new("RGB", (16, 16), "white")
@@ -186,22 +274,46 @@ def test_vlm_caption_uses_tokenizer_chat_template_when_processor_lacks_one(monke
 
 
 def test_vlm_caption_falls_back_when_processor_chat_template_raises(monkeypatch):
+    """验证视觉语言模型生成说明文本`falls``back``when``processor`处理对话`template``raises`。
+
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag import loader
 
     class FakeTokenizer:
         def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+            """应用处理对话`template`。
+
+            :param messages: 函数处理所需的“`messages`”数据；类型由调用方及当前处理场景决定。
+            :param tokenize: 函数处理所需的“分词”数据；类型由调用方及当前处理场景决定。
+            :param add_generation_prompt: 函数处理所需的“`add``generation`提示词”数据；类型由调用方及当前处理场景决定。
+            :return: 返回应用处理对话`template`得到的处理结果；具体类型由实际执行分支决定。
+            """
             return "tokenizer-template"
 
     class FakeProcessor:
         tokenizer = FakeTokenizer()
 
         def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+            """应用处理对话`template`。
+
+            :param messages: 函数处理所需的“`messages`”数据；类型由调用方及当前处理场景决定。
+            :param tokenize: 函数处理所需的“分词”数据；类型由调用方及当前处理场景决定。
+            :param add_generation_prompt: 函数处理所需的“`add``generation`提示词”数据；类型由调用方及当前处理场景决定。
+            :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+            :raises ValueError: 当代码中对应的校验或操作失败条件成立时抛出。
+            """
             raise ValueError("processor has no chat template")
 
     assert loader._apply_vlm_chat_template(FakeProcessor(), []) == "tokenizer-template"
 
 
 def test_real_vlm_load_is_skipped_until_4bit_dependency_is_ready():
+    """验证`real`视觉语言模型加载判断`skipped``until``4bit``dependency`判断`ready`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from agent_server.rag import loader
 
     status = loader.vlm_status()

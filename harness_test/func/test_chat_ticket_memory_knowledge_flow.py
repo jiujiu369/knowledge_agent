@@ -6,6 +6,12 @@ from harness_test.fixture.app_client import auth_headers
 
 
 def test_chat_suggests_ticket_without_creating_one(api_client, monkeypatch):
+    """验证处理对话`suggests`工单`without``creating``one`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     import agent_server.graph_flow.graph_nodes as graph_nodes
 
     monkeypatch.setattr(
@@ -34,6 +40,11 @@ def test_chat_suggests_ticket_without_creating_one(api_client, monkeypatch):
 
 
 def test_user_creates_pending_ticket_and_admin_approves(api_client):
+    """验证用户`creates``pending`工单`and`管理员`approves`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     employee_headers = auth_headers(api_client, "alice")
     admin_headers = auth_headers(api_client, "root", role="admin")
 
@@ -57,12 +68,24 @@ def test_user_creates_pending_ticket_and_admin_approves(api_client):
 
 
 def test_chat_uses_recent_history_as_context(api_client, monkeypatch):
+    """验证处理对话`uses``recent`历史记录`as``context`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     import agent_server.core.db as db
     import agent_server.graph_flow.graph_nodes as graph_nodes
 
     captured: dict[str, str] = {}
 
     def fake_decide(question: str, context: str):
+        """`fake`生成决策。
+
+        :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+        :param context: 函数处理所需的“`context`”数据，类型为 ``str``。
+        :return: 返回`fake`生成决策得到的处理结果；具体类型由实际执行分支决定。
+        """
         captured["context"] = context
         return {"answer": "memory answer", "needs_ticket": False, "title": "memory"}
 
@@ -79,6 +102,13 @@ def test_chat_uses_recent_history_as_context(api_client, monkeypatch):
 
 
 def test_admin_deletes_uploaded_document(api_client, tmp_path, monkeypatch):
+    """验证管理员`deletes``uploaded`文档。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     import agent_server.core.db as db
     import agent_server.tools.business_tools as business_tools
 

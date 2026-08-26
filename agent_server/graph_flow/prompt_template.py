@@ -7,6 +7,12 @@ SYSTEM_PROMPT = """你是公司制度咨询智能体。只能基于检索到的�
 
 
 def build_decision_messages(question: str, context: str) -> list[dict[str, str]]:
+    """构建智能体决策`messages`。
+
+    :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+    :param context: 函数处理所需的“`context`”数据，类型为 ``str``。
+    :return: 返回构建智能体决策`messages`得到的结果，返回类型为 ``list[dict[str, str]]``。
+    """
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"问题：{question}\n\n检索内容：\n{context}"},

@@ -30,9 +30,17 @@ app.include_router(tool_router)
 
 @app.on_event("startup")
 def startup() -> None:
+    """`startup`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     pool()
 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    """检查服务健康状态。
+
+    :return: 返回检查服务健康状态得到的结果，返回类型为 ``dict[str, str]``。
+    """
     return {"status": "ok"}

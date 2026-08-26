@@ -10,6 +10,10 @@ from agent_server.main import app
 
 
 def main() -> None:
+    """执行当前模块的主流程并协调各项处理步骤。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     load_dotenv()

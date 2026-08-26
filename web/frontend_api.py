@@ -38,14 +38,29 @@ ERROR_MESSAGE_MAP = {
 
 
 def api_base_url() -> str:
+    """API基础`url`。
+
+    :return: 返回API基础`url`得到的结果，返回类型为 ``str``。
+    """
     return os.getenv("KNOWLEDGE_AGENT_API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/")
 
 
 def auth_headers(token: str) -> dict[str, str]:
+    """认证请求头。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :return: 返回认证请求头得到的结果，返回类型为 ``dict[str, str]``。
+    """
     return {"Authorization": f"Bearer {token}"}
 
 
 def resolve_page(selected_page: str, query_page: str | None) -> str:
+    """解析并确定页面。
+
+    :param selected_page: 函数处理所需的“`selected`页面”数据，类型为 ``str``。
+    :param query_page: 函数处理所需的“查询页面”数据，类型为 ``str | None``。
+    :return: 返回解析并确定页面得到的结果，返回类型为 ``str``。
+    """
     if query_page in PAGE_NAMES:
         return str(query_page)
     if selected_page in PAGE_NAMES:
@@ -54,6 +69,11 @@ def resolve_page(selected_page: str, query_page: str | None) -> str:
 
 
 def parse_sse_events(lines: Iterable[str | bytes]) -> Iterator[dict[str, Any]]:
+    """解析`sse``events`。
+
+    :param lines: 函数处理所需的“`lines`”数据，类型为 ``Iterable[str | bytes]``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     event_name = "message"
     data_lines: list[str] = []
 
@@ -90,6 +110,11 @@ def parse_sse_events(lines: Iterable[str | bytes]) -> Iterator[dict[str, Any]]:
 
 
 def describe_tool_event(data: dict[str, Any]) -> str:
+    """生成说明工具事件。
+
+    :param data: 函数处理所需的“数据”数据，类型为 ``dict[str, Any]``。
+    :return: 返回生成说明工具事件得到的结果，返回类型为 ``str``。
+    """
     tool = str(data.get("tool") or "")
     if tool == "identity_check":
         return "已确认当前登录身份"
@@ -106,6 +131,11 @@ def describe_tool_event(data: dict[str, Any]) -> str:
 
 
 def stringify_error_message(message: Any) -> str:
+    """转换为字符串错误信息消息。
+
+    :param message: 用户提交或系统生成的消息文本，类型为 ``Any``。
+    :return: 返回转换为字符串错误信息消息得到的结果，返回类型为 ``str``。
+    """
     if message is None:
         return ""
     if isinstance(message, str):
@@ -131,6 +161,11 @@ def stringify_error_message(message: Any) -> str:
 
 
 def localize_error_message(message: Any) -> str:
+    """本地化错误信息消息。
+
+    :param message: 用户提交或系统生成的消息文本，类型为 ``Any``。
+    :return: 返回本地化错误信息消息得到的结果，返回类型为 ``str``。
+    """
     text = stringify_error_message(message).strip()
     if not text:
         return "请求失败"
@@ -150,6 +185,12 @@ def localize_error_message(message: Any) -> str:
 
 
 def response_data(response: requests.Response) -> Any:
+    """响应数据。
+
+    :param response: 需要解析或转换的 HTTP 响应对象，类型为 ``requests.Response``。
+    :return: 返回响应数据得到的结果，返回类型为 ``Any``。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     try:
         payload = response.json()
     except ValueError as exc:
@@ -162,6 +203,13 @@ def response_data(response: requests.Response) -> Any:
 
 
 def login(username: str, password: str, base_url: str | None = None) -> dict[str, Any]:
+    """执行登录。
+
+    :param username: 用于定位账户的用户名，类型为 ``str``。
+    :param password: 函数处理所需的“密码”数据，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回执行登录得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.post(
         f"{base_url or api_base_url()}/api/auth/login",
         json={"username": username, "password": password},
@@ -171,6 +219,12 @@ def login(username: str, password: str, base_url: str | None = None) -> dict[str
 
 
 def get_me(token: str, base_url: str | None = None) -> dict[str, Any]:
+    """获取`me`。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回获取`me`得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.get(
         f"{base_url or api_base_url()}/api/auth/me",
         headers=auth_headers(token),
@@ -180,6 +234,12 @@ def get_me(token: str, base_url: str | None = None) -> dict[str, Any]:
 
 
 def list_users(token: str, base_url: str | None = None) -> dict[str, Any]:
+    """查询列表`users`。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回查询列表`users`得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.get(
         f"{base_url or api_base_url()}/api/auth/admin/users",
         headers=auth_headers(token),
@@ -189,6 +249,14 @@ def list_users(token: str, base_url: str | None = None) -> dict[str, Any]:
 
 
 def create_user(username: str, role: str, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """创建用户。
+
+    :param username: 用于定位账户的用户名，类型为 ``str``。
+    :param role: 用于权限判断的用户角色标识，类型为 ``str``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回创建用户得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.post(
         f"{base_url or api_base_url()}/api/auth/admin/users",
         json={"username": username, "role": role},
@@ -199,6 +267,13 @@ def create_user(username: str, role: str, token: str, base_url: str | None = Non
 
 
 def reset_user_password(user_id: int, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """重置用户密码。
+
+    :param user_id: 函数处理所需的“用户`id`”数据，类型为 ``int``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回重置用户密码得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.post(
         f"{base_url or api_base_url()}/api/auth/admin/users/{user_id}/reset-password",
         headers=auth_headers(token),
@@ -208,6 +283,13 @@ def reset_user_password(user_id: int, token: str, base_url: str | None = None) -
 
 
 def delete_user(user_id: int, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """删除用户。
+
+    :param user_id: 函数处理所需的“用户`id`”数据，类型为 ``int``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回删除用户得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.delete(
         f"{base_url or api_base_url()}/api/auth/admin/users/{user_id}",
         headers=auth_headers(token),
@@ -217,6 +299,14 @@ def delete_user(user_id: int, token: str, base_url: str | None = None) -> dict[s
 
 
 def change_password(old_password: str, new_password: str, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """修改密码。
+
+    :param old_password: 函数处理所需的“`old`密码”数据，类型为 ``str``。
+    :param new_password: 函数处理所需的“`new`密码”数据，类型为 ``str``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回修改密码得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.post(
         f"{base_url or api_base_url()}/api/auth/change-password",
         json={"old_password": old_password, "new_password": new_password},
@@ -227,6 +317,14 @@ def change_password(old_password: str, new_password: str, token: str, base_url: 
 
 
 def stream_chat(message: str, token: str, base_url: str | None = None) -> Iterator[dict[str, Any]]:
+    """流式处理处理对话。
+
+    :param message: 用户提交或系统生成的消息文本，类型为 ``str``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     with requests.post(
         f"{base_url or api_base_url()}/api/chat/stream",
         json={"message": message},
@@ -245,6 +343,12 @@ def stream_chat(message: str, token: str, base_url: str | None = None) -> Iterat
 
 
 def list_chat_history(token: str, base_url: str | None = None) -> dict[str, Any]:
+    """查询列表处理对话历史记录。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回查询列表处理对话历史记录得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.get(
         f"{base_url or api_base_url()}/api/chat/history",
         headers=auth_headers(token),
@@ -254,6 +358,12 @@ def list_chat_history(token: str, base_url: str | None = None) -> dict[str, Any]
 
 
 def list_tickets(token: str, base_url: str | None = None) -> dict[str, Any]:
+    """查询列表`tickets`。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回查询列表`tickets`得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.get(
         f"{base_url or api_base_url()}/api/tickets",
         headers=auth_headers(token),
@@ -263,6 +373,15 @@ def list_tickets(token: str, base_url: str | None = None) -> dict[str, Any]:
 
 
 def create_ticket(title: str, content: str, answer: str, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """创建工单。
+
+    :param title: 函数处理所需的“`title`”数据，类型为 ``str``。
+    :param content: 需要处理或写入的文本内容，类型为 ``str``。
+    :param answer: 函数处理所需的“`answer`”数据，类型为 ``str``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回创建工单得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.post(
         f"{base_url or api_base_url()}/api/tickets",
         json={"title": title, "content": content, "answer": answer},
@@ -273,6 +392,14 @@ def create_ticket(title: str, content: str, answer: str, token: str, base_url: s
 
 
 def update_ticket_status(ticket_id: int, status: str, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """更新工单获取状态。
+
+    :param ticket_id: 函数处理所需的“工单`id`”数据，类型为 ``int``。
+    :param status: 函数处理所需的“获取状态”数据，类型为 ``str``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回更新工单获取状态得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.patch(
         f"{base_url or api_base_url()}/api/tickets/{ticket_id}",
         json={"status": status},
@@ -283,6 +410,12 @@ def update_ticket_status(ticket_id: int, status: str, token: str, base_url: str 
 
 
 def export_ticket_stat(token: str, base_url: str | None = None) -> dict[str, Any]:
+    """导出工单统计数据。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回导出工单统计数据得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.post(
         f"{base_url or api_base_url()}/api/tools/export_ticket_stat",
         json={},
@@ -293,6 +426,12 @@ def export_ticket_stat(token: str, base_url: str | None = None) -> dict[str, Any
 
 
 def list_knowledge(token: str, base_url: str | None = None) -> dict[str, Any]:
+    """查询列表知识库。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回查询列表知识库得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.get(
         f"{base_url or api_base_url()}/api/knowledge",
         headers=auth_headers(token),
@@ -302,6 +441,12 @@ def list_knowledge(token: str, base_url: str | None = None) -> dict[str, Any]:
 
 
 def rebuild_knowledge(token: str, base_url: str | None = None) -> dict[str, Any]:
+    """重建知识库。
+
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回重建知识库得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.post(
         f"{base_url or api_base_url()}/api/knowledge/rebuild",
         headers=auth_headers(token),
@@ -311,6 +456,13 @@ def rebuild_knowledge(token: str, base_url: str | None = None) -> dict[str, Any]
 
 
 def upload_knowledge_file(file_path: Path, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """上传知识库文件。
+
+    :param file_path: 函数处理所需的“文件路径”数据，类型为 ``Path``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回上传知识库文件得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     with file_path.open("rb") as handle:
         response = requests.post(
             f"{base_url or api_base_url()}/api/knowledge/upload",
@@ -322,6 +474,13 @@ def upload_knowledge_file(file_path: Path, token: str, base_url: str | None = No
 
 
 def delete_knowledge_doc(doc_id: int, token: str, base_url: str | None = None) -> dict[str, Any]:
+    """删除知识库知识文档。
+
+    :param doc_id: 函数处理所需的“知识文档`id`”数据，类型为 ``int``。
+    :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
+    :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :return: 返回删除知识库知识文档得到的结果，返回类型为 ``dict[str, Any]``。
+    """
     response = requests.delete(
         f"{base_url or api_base_url()}/api/knowledge/{doc_id}",
         headers=auth_headers(token),

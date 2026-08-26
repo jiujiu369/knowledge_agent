@@ -22,6 +22,12 @@ class LLMSettings:
 
 
 def get_llm_settings(validate_key: bool = False) -> LLMSettings:
+    """获取大语言模型设置。
+
+    :param validate_key: 函数处理所需的“校验`key`”数据，类型为 ``bool``。
+    :return: 返回获取大语言模型设置得到的结果，返回类型为 ``LLMSettings``。
+    :raises RuntimeError: 当代码中对应的校验或操作失败条件成立时抛出。
+    """
     api_key = os.getenv("AGNES_API_KEY") or os.getenv("ARK_API_KEY", "")
     if validate_key and not api_key:
         raise RuntimeError("Missing AGNES_API_KEY or ARK_API_KEY environment variable")

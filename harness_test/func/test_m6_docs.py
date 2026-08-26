@@ -9,6 +9,10 @@ PYTHON_EXE = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
 
 
 def test_verify_readme_script_passes():
+    """验证验证README 文档`script``passes`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     result = subprocess.run(
         [str(PYTHON_EXE), "scripts/verify_readme.py"],
         cwd=PROJECT_ROOT,

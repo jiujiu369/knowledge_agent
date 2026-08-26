@@ -24,6 +24,12 @@ class VectorStoreUnavailable(RuntimeError):
 
 class RagVectorStore:
     def __init__(self, persist_dir: str | Path = CHROMA_DIR, collection_name: str = COLLECTION_NAME) -> None:
+        """初始化当前对象并保存后续操作所需的状态。
+
+        :param persist_dir: 函数处理所需的“`persist``dir`”数据，类型为 ``str | Path``。
+        :param collection_name: 函数处理所需的“`collection``name`”数据，类型为 ``str``。
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        """
         self.persist_dir = Path(persist_dir)
         self.collection_name = collection_name
         self._client: Any | None = None
@@ -31,6 +37,11 @@ class RagVectorStore:
         self.last_error: str | None = None
 
     def collection(self) -> Collection:
+        """`collection`。
+
+        :return: 返回`collection`得到的结果，返回类型为 ``Collection``。
+        :raises VectorStoreUnavailable: 当代码中对应的校验或操作失败条件成立时抛出。
+        """
         if self._collection is not None:
             return self._collection
         try:
@@ -47,6 +58,13 @@ class RagVectorStore:
             raise VectorStoreUnavailable(str(exc)) from exc
 
     def rebuild(self, documents: list[LoadedDocument], chunks: list[DocumentChunk]) -> None:
+        """重建。
+
+        :param documents: 函数处理所需的“`documents`”数据，类型为 ``list[LoadedDocument]``。
+        :param chunks: 函数处理所需的“`chunks`”数据，类型为 ``list[DocumentChunk]``。
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        :raises VectorStoreUnavailable: 当代码中对应的校验或操作失败条件成立时抛出。
+        """
         try:
             if self.persist_dir.exists():
                 shutil.rmtree(self.persist_dir)
@@ -59,6 +77,12 @@ class RagVectorStore:
             raise VectorStoreUnavailable(str(exc)) from exc
 
     def upsert_chunks(self, chunks: list[DocumentChunk]) -> None:
+        """新增或更新`chunks`。
+
+        :param chunks: 函数处理所需的“`chunks`”数据，类型为 ``list[DocumentChunk]``。
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        :raises VectorStoreUnavailable: 当代码中对应的校验或操作失败条件成立时抛出。
+        """
         if not chunks:
             return
         try:
@@ -77,6 +101,13 @@ class RagVectorStore:
             raise VectorStoreUnavailable(str(exc)) from exc
 
     def update_document(self, source_path: str, chunks: list[DocumentChunk]) -> None:
+        """更新文档。
+
+        :param source_path: 函数处理所需的“源文件路径”数据，类型为 ``str``。
+        :param chunks: 函数处理所需的“`chunks`”数据，类型为 ``list[DocumentChunk]``。
+        :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+        :raises VectorStoreUnavailable: 当代码中对应的校验或操作失败条件成立时抛出。
+        """
         try:
             collection = self.collection()
             existing = collection.get(where={"source_path": source_path})
@@ -90,6 +121,12 @@ class RagVectorStore:
             raise VectorStoreUnavailable(str(exc)) from exc
 
     def query(self, query: str, top_k: int = 5) -> list[DocumentChunk]:
+        """查询。
+
+        :param query: 用户输入或检索使用的查询文本，类型为 ``str``。
+        :param top_k: 函数处理所需的“`top``k`”数据，类型为 ``int``。
+        :return: 返回查询得到的结果，返回类型为 ``list[DocumentChunk]``。
+        """
         try:
             collection = self.collection()
             if collection.count() == 0:
@@ -122,6 +159,11 @@ class RagVectorStore:
 
 
 def _clean_metadata(metadata: dict[str, Any]) -> dict[str, str | int | float | bool | None]:
+    """清理元数据。
+
+    :param metadata: 函数处理所需的“元数据”数据，类型为 ``dict[str, Any]``。
+    :return: 返回清理元数据得到的结果，返回类型为 ``dict[str, str | int | float | bool | None]``。
+    """
     clean: dict[str, str | int | float | bool | None] = {}
     for key, value in metadata.items():
         if isinstance(value, (str, int, float, bool)) or value is None:

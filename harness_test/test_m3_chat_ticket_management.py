@@ -7,6 +7,12 @@ from fastapi.testclient import TestClient
 
 
 def _client(tmp_path: Path, monkeypatch):
+    """客户端。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录，类型为 ``Path``。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 返回客户端得到的处理结果；具体类型由实际执行分支决定。
+    """
     monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "app.db"))
     monkeypatch.setenv("AGNES_API_KEY", "test-key")
     monkeypatch.setenv("AGNES_BASE_URL", "https://example.test/v1")
@@ -23,6 +29,13 @@ def _client(tmp_path: Path, monkeypatch):
 
 
 def _register_and_login(client: TestClient, username: str, role: str = "employee") -> dict[str, str]:
+    """注册`and`执行登录。
+
+    :param client: 函数处理所需的“客户端”数据，类型为 ``TestClient``。
+    :param username: 用于定位账户的用户名，类型为 ``str``。
+    :param role: 用于权限判断的用户角色标识，类型为 ``str``。
+    :return: 返回注册`and`执行登录得到的结果，返回类型为 ``dict[str, str]``。
+    """
     client.post("/api/auth/register", json={"username": username, "password": "Passw0rd!", "role": role})
     login = client.post("/api/auth/login", json={"username": username, "password": "Passw0rd!"})
     assert login.status_code == 200, login.text
@@ -30,6 +43,12 @@ def _register_and_login(client: TestClient, username: str, role: str = "employee
 
 
 def test_chat_history_is_saved_for_current_user(tmp_path, monkeypatch):
+    """验证处理对话历史记录判断`saved``for`当前用户。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     import agent_server.graph_flow.graph_nodes as graph_nodes
@@ -59,6 +78,12 @@ def test_chat_history_is_saved_for_current_user(tmp_path, monkeypatch):
 
 
 def test_stream_chat_history_is_saved_after_done_event(tmp_path, monkeypatch):
+    """验证流式处理处理对话历史记录判断`saved``after``done`事件。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     import agent_server.graph_flow.graph_nodes as graph_nodes
@@ -81,6 +106,12 @@ def test_stream_chat_history_is_saved_after_done_event(tmp_path, monkeypatch):
 
 
 def test_admin_can_view_and_manage_all_tickets_while_users_only_see_their_own(tmp_path, monkeypatch):
+    """验证管理员`can``view``and``manage``all``tickets``while``users``only``see``their``own`。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     client = _client(tmp_path, monkeypatch)
 
     import agent_server.core.db as db

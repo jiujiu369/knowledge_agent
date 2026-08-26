@@ -7,6 +7,11 @@ from loop_optimizer.rules import normalize_question
 
 
 def aggregate_samples(samples: list[BadSample]) -> list[Finding]:
+    """聚合`samples`。
+
+    :param samples: 函数处理所需的“`samples`”数据，类型为 ``list[BadSample]``。
+    :return: 返回聚合`samples`得到的结果，返回类型为 ``list[Finding]``。
+    """
     grouped: dict[str, list[BadSample]] = defaultdict(list)
     for sample in samples:
         key = normalize_question(sample.question)
@@ -37,6 +42,11 @@ def aggregate_samples(samples: list[BadSample]) -> list[Finding]:
 
 
 def _suggestion(categories: list[str]) -> str:
+    """`suggestion`。
+
+    :param categories: 函数处理所需的“`categories`”数据，类型为 ``list[str]``。
+    :return: 返回`suggestion`得到的结果，返回类型为 ``str``。
+    """
     if "hallucination_risk" in categories:
         return "强化回答约束：金额、条款、工单号必须来自检索内容；缺依据时要求说明未命中。"
     if "low_match" in categories:

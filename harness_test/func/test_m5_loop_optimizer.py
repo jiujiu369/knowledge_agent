@@ -6,11 +6,21 @@ from pathlib import Path
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
+    """写入`jsonl`。
+
+    :param path: 目标文件或目录路径，类型为 ``Path``。
+    :param rows: 需要写入、转换或聚合的多行数据，类型为 ``list[dict]``。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in rows), encoding="utf-8")
 
 
 def test_rule_scoring_marks_low_match_and_hallucination_risk():
+    """验证`rule``scoring``marks``low`匹配`and``hallucination``risk`。
+
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from loop_optimizer.models import QAEvent
     from loop_optimizer.rules import score_event
 
@@ -32,6 +42,11 @@ def test_rule_scoring_marks_low_match_and_hallucination_risk():
 
 
 def test_collector_extracts_low_match_hallucination_and_high_frequency(tmp_path):
+    """验证`collector``extracts``low`匹配`hallucination``and``high``frequency`。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from loop_optimizer.collector import collect_samples
 
     _write_jsonl(
@@ -65,6 +80,11 @@ def test_collector_extracts_low_match_hallucination_and_high_frequency(tmp_path)
 
 
 def test_filter_deduplicates_and_aggregates_samples(tmp_path):
+    """验证过滤`deduplicates``and``aggregates``samples`。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from loop_optimizer.collector import collect_samples
     from loop_optimizer.filter import aggregate_samples
 
@@ -84,6 +104,11 @@ def test_filter_deduplicates_and_aggregates_samples(tmp_path):
 
 
 def test_updater_writes_review_only_artifacts_and_preserves_prompt(tmp_path):
+    """验证`updater``writes``review``only``artifacts``and``preserves`提示词。
+
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from loop_optimizer.collector import collect_samples
     from loop_optimizer.filter import aggregate_samples
     from loop_optimizer.updater import write_outputs
@@ -117,6 +142,13 @@ def test_updater_writes_review_only_artifacts_and_preserves_prompt(tmp_path):
 
 
 def test_chat_api_writes_structured_qa_log_without_auth_secret(api_client, tmp_path, monkeypatch):
+    """验证处理对话API`writes``structured``qa`记录`without`认证`secret`。
+
+    :param api_client: 隔离测试环境提供的 FastAPI 测试客户端与辅助数据；类型由调用方及当前处理场景决定。
+    :param tmp_path: pytest 为当前测试提供的隔离临时目录；类型由调用方及当前处理场景决定。
+    :param monkeypatch: pytest 提供的运行时替换与环境变量修改夹具；类型由调用方及当前处理场景决定。
+    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    """
     from harness_test.fixture.app_client import auth_headers
     from common.models import RetrievalResult
 

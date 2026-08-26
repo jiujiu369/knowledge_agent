@@ -16,10 +16,20 @@ FACT_PATTERNS = (
 
 
 def normalize_question(question: str) -> str:
+    """规范化问题。
+
+    :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+    :return: 返回规范化问题得到的结果，返回类型为 ``str``。
+    """
     return re.sub(r"\s+", "", question).strip().lower()
 
 
 def max_match_score(event: QAEvent) -> float:
+    """`max`匹配计算评分。
+
+    :param event: 需要处理或记录的事件数据，类型为 ``QAEvent``。
+    :return: 返回`max`匹配计算评分得到的结果，返回类型为 ``float``。
+    """
     scores: list[float] = []
     for item in event.retrieval:
         try:
@@ -30,6 +40,11 @@ def max_match_score(event: QAEvent) -> float:
 
 
 def rule_risk_score(event: QAEvent) -> float:
+    """`rule``risk`计算评分。
+
+    :param event: 需要处理或记录的事件数据，类型为 ``QAEvent``。
+    :return: 返回`rule``risk`计算评分得到的结果，返回类型为 ``float``。
+    """
     guardrail_score = event.guardrail.get("risk_score", 0.0)
     try:
         risk = float(guardrail_score)
@@ -50,6 +65,11 @@ def rule_risk_score(event: QAEvent) -> float:
 
 
 def score_event(event: QAEvent) -> ScoredEvent:
+    """计算评分事件。
+
+    :param event: 需要处理或记录的事件数据，类型为 ``QAEvent``。
+    :return: 返回计算评分事件得到的结果，返回类型为 ``ScoredEvent``。
+    """
     match_score = round(max_match_score(event), 4)
     risk_score = rule_risk_score(event)
     categories: list[str] = []
@@ -61,5 +81,11 @@ def score_event(event: QAEvent) -> ScoredEvent:
 
 
 def high_frequency_keys(events: list[QAEvent], threshold: int = 2) -> set[str]:
+    """`high``frequency``keys`。
+
+    :param events: 函数处理所需的“`events`”数据，类型为 ``list[QAEvent]``。
+    :param threshold: 函数处理所需的“`threshold`”数据，类型为 ``int``。
+    :return: 返回`high``frequency``keys`得到的结果，返回类型为 ``set[str]``。
+    """
     counter = Counter(normalize_question(event.question) for event in events if normalize_question(event.question))
     return {question for question, count in counter.items() if count >= threshold}
