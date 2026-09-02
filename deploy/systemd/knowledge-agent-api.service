@@ -4,6 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
+User=knowledge-agent
+Group=knowledge-agent
 WorkingDirectory=/opt/knowledge_agent
 EnvironmentFile=/opt/knowledge_agent/.env
 ExecStart=/opt/knowledge_agent/.venv/bin/python -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000

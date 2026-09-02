@@ -66,8 +66,13 @@ def test_systemd_units_use_isolated_directory_and_ports():
 
     assert "WorkingDirectory=/opt/knowledge_agent" in api
     assert "--host 127.0.0.1 --port 8000" in api
+    assert "User=knowledge-agent" in api
+    assert "Group=knowledge-agent" in api
     assert "WorkingDirectory=/opt/knowledge_agent" in web
     assert "--server.address 0.0.0.0 --server.port 8501" in web
+    assert "User=knowledge-agent" in web
+    assert "Group=knowledge-agent" in web
+    assert "Wants=knowledge-agent-api.service" in web
 
 
 def test_static_checker_accepts_committed_deployment_configuration():
@@ -99,3 +104,69 @@ def test_static_checker_rejects_public_api_binding(tmp_path):
     errors = validate(tmp_path)
 
     assert "knowledge-agent-api.service must not bind the API to 0.0.0.0" in errors
+
+
+def test_static_checker_rejects_nonempty_agnes_api_key(tmp_path):
+    from scripts.check_deployment_config import validate
+
+    project_root = Path(__file__).resolve().parents[1]
+    shutil.copytree(project_root / "deploy", tmp_path / "deploy")
+    shutil.copy2(project_root / "requirements-cloud.txt", tmp_path / "requirements-cloud.txt")
+    env_template = tmp_path / "deploy/knowledge-agent.env.example"
+    env_template.write_text(
+        env_template.read_text(encoding="utf-8").replace("AGNES_API_KEY=\n", "AGNES_API_KEY=real-key\n"),
+        encoding="utf-8",
+    )
+
+    assert "environment template: AGNES_API_KEY must be empty" in validate(tmp_path)
+
+
+def test_static_checker_rejects_conflicting_duplicate_dotenv_key(tmp_path):
+    from scripts.check_deployment_config import validate
+
+    project_root = Path(__file__).resolve().parents[1]
+    shutil.copytree(project_root / "deploy", tmp_path / "deploy")
+    shutil.copy2(project_root / "requirements-cloud.txt", tmp_path / "requirements-cloud.txt")
+    env_template = tmp_path / "deploy/knowledge-agent.env.example"
+    env_template.write_text(
+        env_template.read_text(encoding="utf-8") + "VLM_ENABLED=true\n",
+        encoding="utf-8",
+    )
+
+    assert "environment template: conflicting duplicate key VLM_ENABLED" in validate(tmp_path)
+
+
+def test_static_checker_does_not_accept_commented_systemd_directive(tmp_path):
+    from scripts.check_deployment_config import validate
+
+    project_root = Path(__file__).resolve().parents[1]
+    shutil.copytree(project_root / "deploy", tmp_path / "deploy")
+    shutil.copy2(project_root / "requirements-cloud.txt", tmp_path / "requirements-cloud.txt")
+    api_unit = tmp_path / "deploy/systemd/knowledge-agent-api.service"
+    api_unit.write_text(
+        api_unit.read_text(encoding="utf-8").replace(
+            "WorkingDirectory=/opt/knowledge_agent",
+            "# WorkingDirectory=/opt/knowledge_agent",
+        ),
+        encoding="utf-8",
+    )
+
+    assert "knowledge-agent-api.service [Service]: WorkingDirectory must be /opt/knowledge_agent" in validate(tmp_path)
+
+
+def test_static_checker_does_not_accept_commented_dotenv_key(tmp_path):
+    from scripts.check_deployment_config import validate
+
+    project_root = Path(__file__).resolve().parents[1]
+    shutil.copytree(project_root / "deploy", tmp_path / "deploy")
+    shutil.copy2(project_root / "requirements-cloud.txt", tmp_path / "requirements-cloud.txt")
+    env_template = tmp_path / "deploy/knowledge-agent.env.example"
+    env_template.write_text(
+        env_template.read_text(encoding="utf-8").replace(
+            "VLM_ENABLED=false",
+            "# VLM_ENABLED=false",
+        ),
+        encoding="utf-8",
+    )
+
+    assert "environment template: VLM_ENABLED must be false" in validate(tmp_path)
