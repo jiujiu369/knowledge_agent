@@ -1,7 +1,7 @@
 .venv/
 .worktrees/
 datas/
-models/
+/models/
 **pycache**/
 *.pyc
 .env

@@ -59,8 +59,9 @@ def test_embedding_config_uses_local_bge_path():
     :return: 无返回值；函数通过副作用、断言或异常完成其职责。
     """
     from agent_server.rag.embed_loader import BGE_MODEL_PATH, EXPECTED_EMBEDDING_DIM
+    from common.constants import BGE_MODEL_PATH as configured_model_path
 
-    assert BGE_MODEL_PATH == r"F:\code\knowledge_agent\models\bge-base-zh-v1.5"
+    assert BGE_MODEL_PATH == configured_model_path
     assert EXPECTED_EMBEDDING_DIM == 768
 
 

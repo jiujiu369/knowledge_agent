@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from pathlib import Path
-
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+from common.constants import BGE_MODEL_PATH
 
-BGE_MODEL_PATH = r"F:\code\knowledge_agent\models\bge-base-zh-v1.5"
 EXPECTED_EMBEDDING_DIM = 768
 
 
@@ -19,11 +17,10 @@ def get_embedding_model() -> SentenceTransformer:
     :raises FileNotFoundError: 当代码中对应的校验或操作失败条件成立时抛出。
     :raises ValueError: 当代码中对应的校验或操作失败条件成立时抛出。
     """
-    model_dir = Path(BGE_MODEL_PATH)
-    if not model_dir.exists():
+    if not BGE_MODEL_PATH.exists():
         raise FileNotFoundError(f"Local BGE model not found: {BGE_MODEL_PATH}")
     model = SentenceTransformer(
-        BGE_MODEL_PATH,
+        str(BGE_MODEL_PATH),
         local_files_only=True,
         trust_remote_code=False,
     )
