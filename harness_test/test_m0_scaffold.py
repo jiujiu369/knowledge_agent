@@ -34,7 +34,7 @@ def test_common_modules_import():
     import common.logger_base
     import common.models
 
-    assert common.constants.BGE_MODEL_PATH.endswith("models/bge-base-zh-v1.5")
+    assert common.constants.BGE_MODEL_PATH == common.constants.PROJECT_ROOT / "models" / "bge-base-zh-v1.5"
 
 
 def test_llm_config_defaults_to_agnes_without_key_validation():
