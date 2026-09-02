@@ -82,7 +82,7 @@ def register(payload: RegisterRequest):
     :param payload: 函数处理所需的“`payload`”数据，类型为 ``RegisterRequest``。
     :return: 返回注册得到的处理结果；具体类型由实际执行分支决定。
     """
-    user = register_user(payload.username, payload.password, payload.role)
+    user = register_user(payload.username, payload.password, "employee")
     return ok({"id": user["id"], "username": user["username"], "role": user["role"]})
 
 

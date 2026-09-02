@@ -105,6 +105,19 @@ def test_employee_cannot_create_users(tmp_path, monkeypatch):
     assert response.status_code == 403
 
 
+def test_public_register_cannot_create_admin(tmp_path, monkeypatch):
+    """验证公共注册始终创建普通用户。"""
+    client = _client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/api/auth/register",
+        json={"username": "public_user", "password": "Passw0rd!", "role": "admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["role"] == "employee"
+
+
 def test_admin_cannot_delete_or_reset_self(tmp_path, monkeypatch):
     """验证管理员`cannot`删除`or`重置`self`。
 
