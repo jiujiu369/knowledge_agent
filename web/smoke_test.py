@@ -56,6 +56,7 @@ def _login(username: str, password: str = PASSWORD) -> str:
     """执行登录。
 
     :param username: 用于定位账户的用户名，类型为 ``str``。
+    :param password: 用于登录验证的账户密码，类型为 ``str``。
     :return: 返回执行登录得到的结果，返回类型为 ``str``。
     """
     response = requests.post(

@@ -8,6 +8,10 @@ from pathlib import Path
 
 
 def test_default_model_paths_are_project_relative():
+    """验证默认模型目录以项目根目录为基准。
+
+    :return: 无返回值；模型路径偏离项目目录时断言失败。
+    """
     from common import constants
 
     assert constants.BGE_MODEL_PATH == constants.PROJECT_ROOT / "models" / "bge-base-zh-v1.5"
@@ -16,6 +20,12 @@ def test_default_model_paths_are_project_relative():
 
 
 def test_model_paths_can_be_overridden(monkeypatch, tmp_path):
+    """验证部署环境可覆盖三个本地模型目录。
+
+    :param monkeypatch: pytest 提供的环境变量替换夹具。
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :return: 无返回值；路径覆盖未生效时断言失败。
+    """
     monkeypatch.setenv("BGE_MODEL_PATH", str(tmp_path / "bge"))
     monkeypatch.setenv("RERANKER_MODEL_PATH", str(tmp_path / "reranker"))
     monkeypatch.setenv("VLM_MODEL_DIR", str(tmp_path / "vlm"))
@@ -30,6 +40,10 @@ def test_model_paths_can_be_overridden(monkeypatch, tmp_path):
 
 
 def test_models_ignore_rule_keeps_common_models_tracked():
+    """验证运行模型目录被忽略而公共 Python 包仍受版本控制。
+
+    :return: 无返回值；忽略规则过宽或包文件未追踪时断言失败。
+    """
     project_root = Path(__file__).resolve().parents[1]
     ignore_rules = (project_root / ".gitignore").read_text(encoding="utf-8").splitlines()
     tracked = subprocess.run(
@@ -46,6 +60,10 @@ def test_models_ignore_rule_keeps_common_models_tracked():
 
 
 def test_ecs_template_is_lightweight_and_contains_no_real_key():
+    """验证 ECS 模板关闭重组件且不包含真实密钥。
+
+    :return: 无返回值；模板或轻量依赖不符合部署边界时断言失败。
+    """
     project_root = Path(__file__).resolve().parents[1]
     text = (project_root / "deploy/knowledge-agent.env.example").read_text(encoding="utf-8")
     requirements = (project_root / "requirements-cloud.txt").read_text(encoding="utf-8").lower()
@@ -60,6 +78,10 @@ def test_ecs_template_is_lightweight_and_contains_no_real_key():
 
 
 def test_systemd_units_use_isolated_directory_and_ports():
+    """验证两个 systemd 单元使用隔离目录、账户和端口。
+
+    :return: 无返回值；服务配置与部署约定不一致时断言失败。
+    """
     project_root = Path(__file__).resolve().parents[1]
     api = (project_root / "deploy/systemd/knowledge-agent-api.service").read_text(encoding="utf-8")
     web = (project_root / "deploy/systemd/knowledge-agent-web.service").read_text(encoding="utf-8")
@@ -76,6 +98,10 @@ def test_systemd_units_use_isolated_directory_and_ports():
 
 
 def test_static_checker_accepts_committed_deployment_configuration():
+    """验证提交的部署配置可通过静态检查器。
+
+    :return: 无返回值；检查器返回非零状态或错误输出时断言失败。
+    """
     project_root = Path(__file__).resolve().parents[1]
     result = subprocess.run(
         [sys.executable, "scripts/check_deployment_config.py"],
@@ -90,6 +116,11 @@ def test_static_checker_accepts_committed_deployment_configuration():
 
 
 def test_static_checker_rejects_public_api_binding(tmp_path):
+    """验证 API 单元禁止绑定公网地址。
+
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :return: 无返回值；公网绑定未被检查器拒绝时断言失败。
+    """
     from scripts.check_deployment_config import validate
 
     project_root = Path(__file__).resolve().parents[1]
@@ -107,6 +138,11 @@ def test_static_checker_rejects_public_api_binding(tmp_path):
 
 
 def test_static_checker_rejects_nonempty_agnes_api_key(tmp_path):
+    """验证环境模板拒绝非空 Agnes 密钥。
+
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :return: 无返回值；非空密钥未被检查器拒绝时断言失败。
+    """
     from scripts.check_deployment_config import validate
 
     project_root = Path(__file__).resolve().parents[1]
@@ -122,6 +158,11 @@ def test_static_checker_rejects_nonempty_agnes_api_key(tmp_path):
 
 
 def test_static_checker_rejects_conflicting_duplicate_dotenv_key(tmp_path):
+    """验证环境模板拒绝冲突的重复键。
+
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :return: 无返回值；冲突重复键未被检查器拒绝时断言失败。
+    """
     from scripts.check_deployment_config import validate
 
     project_root = Path(__file__).resolve().parents[1]
@@ -137,6 +178,11 @@ def test_static_checker_rejects_conflicting_duplicate_dotenv_key(tmp_path):
 
 
 def test_static_checker_does_not_accept_commented_systemd_directive(tmp_path):
+    """验证被注释的 systemd 指令不能满足部署约束。
+
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :return: 无返回值；注释指令被误判为有效时断言失败。
+    """
     from scripts.check_deployment_config import validate
 
     project_root = Path(__file__).resolve().parents[1]
@@ -155,6 +201,11 @@ def test_static_checker_does_not_accept_commented_systemd_directive(tmp_path):
 
 
 def test_static_checker_does_not_accept_commented_dotenv_key(tmp_path):
+    """验证被注释的 dotenv 键不能满足部署约束。
+
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :return: 无返回值；注释键被误判为有效时断言失败。
+    """
     from scripts.check_deployment_config import validate
 
     project_root = Path(__file__).resolve().parents[1]

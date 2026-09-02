@@ -9,7 +9,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def read_text(path: Path, project_root: Path, errors: list[str]) -> str:
-    """读取部署文件；缺失时记录检查错误。"""
+    """读取部署文件；缺失时记录检查错误。
+
+    :param path: 需要读取的部署文件路径。
+    :param project_root: 用于生成相对错误路径的项目根目录。
+    :param errors: 接收缺失文件错误的列表。
+    :return: 返回 UTF-8 解码后的文件内容；缺失时返回空字符串。
+    """
     if not path.is_file():
         errors.append(f"missing file: {path.relative_to(project_root)}")
         return ""
@@ -17,7 +23,12 @@ def read_text(path: Path, project_root: Path, errors: list[str]) -> str:
 
 
 def parse_dotenv(text: str, errors: list[str]) -> dict[str, str]:
-    """解析有效的 dotenv 键值并拒绝重复或无效条目。"""
+    """解析有效的 dotenv 键值并拒绝重复或无效条目。
+
+    :param text: 待解析的 dotenv 文本。
+    :param errors: 接收格式与重复键错误的列表。
+    :return: 返回解析得到的环境变量键值映射。
+    """
     values: dict[str, str] = {}
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.strip()
@@ -42,7 +53,13 @@ def parse_dotenv(text: str, errors: list[str]) -> dict[str, str]:
 
 
 def parse_systemd_unit(text: str, unit_name: str, errors: list[str]) -> dict[str, dict[str, str]]:
-    """解析有效的 systemd section/directive，忽略注释行。"""
+    """解析有效的 systemd section/directive，忽略注释行。
+
+    :param text: 待解析的 systemd 单元文本。
+    :param unit_name: 用于错误信息的单元文件名。
+    :param errors: 接收格式与重复指令错误的列表。
+    :return: 返回按 section 和指令分组的配置映射。
+    """
     sections: dict[str, dict[str, str]] = {}
     current_section: str | None = None
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
@@ -83,13 +100,25 @@ def parse_systemd_unit(text: str, unit_name: str, errors: list[str]) -> dict[str
 def require_value(
     values: dict[str, str], key: str, expected: str, label: str, errors: list[str]
 ) -> None:
-    """确认解析后的键值等于部署约束。"""
+    """确认解析后的键值等于部署约束。
+
+    :param values: 已解析的配置键值映射。
+    :param key: 需要校验的配置键。
+    :param expected: 配置键必须匹配的值。
+    :param label: 错误信息中使用的配置来源标签。
+    :param errors: 接收不匹配错误的列表。
+    :return: 无返回值；不匹配时向 ``errors`` 追加错误。
+    """
     if values.get(key) != expected:
         errors.append(f"{label}: {key} must be {expected}")
 
 
 def requirement_names(text: str) -> set[str]:
-    """返回 requirements 文件中的有效分发包名。"""
+    """返回 requirements 文件中的有效分发包名。
+
+    :param text: requirements 文件文本。
+    :return: 返回规范化为小写的依赖包名集合。
+    """
     names: set[str] = set()
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -102,7 +131,11 @@ def requirement_names(text: str) -> set[str]:
 
 
 def validate(project_root: Path = PROJECT_ROOT) -> list[str]:
-    """返回当前仓库轻量部署配置的全部静态错误。"""
+    """返回当前仓库轻量部署配置的全部静态错误。
+
+    :param project_root: 需要校验的项目根目录。
+    :return: 返回全部静态配置错误；无错误时返回空列表。
+    """
     errors: list[str] = []
     deploy_root = project_root / "deploy"
     env_text = read_text(deploy_root / "knowledge-agent.env.example", project_root, errors)
@@ -174,7 +207,10 @@ def validate(project_root: Path = PROJECT_ROOT) -> list[str]:
 
 
 def main() -> int:
-    """打印检查结果并返回适合自动化调用的退出码。"""
+    """打印检查结果并返回适合自动化调用的退出码。
+
+    :return: 配置正确时返回 ``0``，否则返回 ``1``。
+    """
     errors = validate()
     if errors:
         print("\n".join(errors), file=sys.stderr)

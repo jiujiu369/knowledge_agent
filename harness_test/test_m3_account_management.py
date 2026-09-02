@@ -108,7 +108,12 @@ def test_employee_cannot_create_users(tmp_path, monkeypatch):
 
 
 def test_public_register_cannot_create_admin(tmp_path, monkeypatch):
-    """验证公共注册始终创建普通用户。"""
+    """验证公共注册始终创建普通用户。
+
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :param monkeypatch: pytest 提供的运行时替换夹具。
+    :return: 无返回值；公共注册角色越权时断言失败。
+    """
     client = _client(tmp_path, monkeypatch)
 
     response = client.post(

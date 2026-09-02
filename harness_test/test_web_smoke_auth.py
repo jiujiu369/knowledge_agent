@@ -2,7 +2,11 @@ from __future__ import annotations
 
 
 def test_web_smoke_uses_precreated_admin_credentials(monkeypatch):
-    """Web smoke 必须使用环境变量提供的预创建管理员，不调用公共注册。"""
+    """验证 Web 冒烟测试使用预创建管理员且不调用公共注册。
+
+    :param monkeypatch: pytest 提供的环境变量和属性替换夹具。
+    :return: 无返回值；冒烟测试仍尝试公共注册时断言失败。
+    """
     import web.smoke_test as smoke
 
     monkeypatch.setenv("KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME", "precreated-admin")

@@ -14,8 +14,23 @@ def _python_files() -> list[Path]:
     return [
         path
         for path in PROJECT_ROOT.rglob("*.py")
-        if not any(part in EXCLUDED_DIRS for part in path.relative_to(PROJECT_ROOT).parts)
+        if not any(
+            part in EXCLUDED_DIRS or part.startswith(".venv")
+            for part in path.relative_to(PROJECT_ROOT).parts
+        )
     ]
+
+
+def test_python_files_excludes_virtual_environment_prefixes() -> None:
+    """验证带 ``.venv`` 前缀的本地虚拟环境不会被当作项目源码扫描。
+
+    :return: 无返回值；扫描结果包含虚拟环境内 Python 文件时由断言报错。
+    """
+    assert not any(
+        part.startswith(".venv")
+        for path in _python_files()
+        for part in path.relative_to(PROJECT_ROOT).parts
+    )
 
 
 def _function_arguments(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
