@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -41,3 +43,59 @@ def test_models_ignore_rule_keeps_common_models_tracked():
     assert "/models/" in ignore_rules
     assert "models/" not in ignore_rules
     assert tracked.returncode == 0, tracked.stderr
+
+
+def test_ecs_template_is_lightweight_and_contains_no_real_key():
+    project_root = Path(__file__).resolve().parents[1]
+    text = (project_root / "deploy/knowledge-agent.env.example").read_text(encoding="utf-8")
+    requirements = (project_root / "requirements-cloud.txt").read_text(encoding="utf-8").lower()
+
+    assert "VLM_ENABLED=false" in text
+    assert "RERANKER_ENABLED=false" in text
+    assert "KNOWLEDGE_AGENT_API_BASE_URL=http://127.0.0.1:8000" in text
+    assert "AGNES_API_KEY=" in text
+    assert "paddlepaddle" not in requirements
+    assert "paddleocr" not in requirements
+    assert "bitsandbytes" not in requirements
+
+
+def test_systemd_units_use_isolated_directory_and_ports():
+    project_root = Path(__file__).resolve().parents[1]
+    api = (project_root / "deploy/systemd/knowledge-agent-api.service").read_text(encoding="utf-8")
+    web = (project_root / "deploy/systemd/knowledge-agent-web.service").read_text(encoding="utf-8")
+
+    assert "WorkingDirectory=/opt/knowledge_agent" in api
+    assert "--host 127.0.0.1 --port 8000" in api
+    assert "WorkingDirectory=/opt/knowledge_agent" in web
+    assert "--server.address 0.0.0.0 --server.port 8501" in web
+
+
+def test_static_checker_accepts_committed_deployment_configuration():
+    project_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "scripts/check_deployment_config.py"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "DEPLOYMENT_CONFIG_OK"
+
+
+def test_static_checker_rejects_public_api_binding(tmp_path):
+    from scripts.check_deployment_config import validate
+
+    project_root = Path(__file__).resolve().parents[1]
+    shutil.copytree(project_root / "deploy", tmp_path / "deploy")
+    shutil.copy2(project_root / "requirements-cloud.txt", tmp_path / "requirements-cloud.txt")
+    api_unit = tmp_path / "deploy/systemd/knowledge-agent-api.service"
+    api_unit.write_text(
+        api_unit.read_text(encoding="utf-8").replace("--host 127.0.0.1", "--host 0.0.0.0"),
+        encoding="utf-8",
+    )
+
+    errors = validate(tmp_path)
+
+    assert "knowledge-agent-api.service must not bind the API to 0.0.0.0" in errors

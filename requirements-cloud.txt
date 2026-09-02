@@ -1,0 +1,20 @@
+# ECS lightweight runtime dependencies.
+fastapi
+uvicorn[standard]
+langchain
+langgraph
+chromadb
+sentence-transformers
+numpy
+pydantic
+python-dotenv
+python-multipart
+httpx
+openai
+rank-bm25
+jieba
+PyMuPDF
+pdfplumber
+python-docx
+streamlit
+requests

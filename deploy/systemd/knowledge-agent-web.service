@@ -1,0 +1,14 @@
+[Unit]
+Description=Knowledge Agent Web
+After=network.target knowledge-agent-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/knowledge_agent
+EnvironmentFile=/opt/knowledge_agent/.env
+ExecStart=/opt/knowledge_agent/.venv/bin/python -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
