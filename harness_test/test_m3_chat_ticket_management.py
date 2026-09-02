@@ -37,7 +37,15 @@ def _register_and_login(client: TestClient, username: str, role: str = "employee
     :param role: 用于权限判断的用户角色标识，类型为 ``str``。
     :return: 返回注册`and`执行登录得到的结果，返回类型为 ``dict[str, str]``。
     """
-    client.post("/api/auth/register", json={"username": username, "password": "Passw0rd!", "role": role})
+    if role == "admin":
+        from agent_server.core.auth import register_user
+
+        register_user(username, "Passw0rd!", role)
+    else:
+        register = client.post(
+            "/api/auth/register", json={"username": username, "password": "Passw0rd!", "role": role}
+        )
+        assert register.status_code == 200, register.text
     login = client.post("/api/auth/login", json={"username": username, "password": "Passw0rd!"})
     assert login.status_code == 200, login.text
     return {"Authorization": f"Bearer {login.json()['data']['token']}"}

@@ -16,6 +16,8 @@ from web.frontend_api import auth_headers, parse_sse_events
 
 BASE_URL = os.getenv("KNOWLEDGE_AGENT_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 PASSWORD = "Passw0rd!"
+ADMIN_USERNAME_ENV = "KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME"
+ADMIN_PASSWORD_ENV = "KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD"
 
 
 def _json(response: requests.Response) -> dict[str, Any]:
@@ -50,7 +52,7 @@ def _register(username: str, role: str) -> None:
         assert "already exists" in response.text, response.text
 
 
-def _login(username: str) -> str:
+def _login(username: str, password: str = PASSWORD) -> str:
     """执行登录。
 
     :param username: 用于定位账户的用户名，类型为 ``str``。
@@ -58,7 +60,7 @@ def _login(username: str) -> str:
     """
     response = requests.post(
         f"{BASE_URL}/api/auth/login",
-        json={"username": username, "password": PASSWORD},
+        json={"username": username, "password": password},
         timeout=20,
     )
     assert response.status_code == 200, response.text
@@ -83,14 +85,18 @@ def _make_docx() -> Path:
     return path
 
 
-def _prepare_admin(admin: str) -> tuple[str, dict[str, str]]:
+def _prepare_admin(_legacy_admin: str | None = None) -> tuple[str, dict[str, str]]:
     """准备管理员。
 
-    :param admin: 函数处理所需的“管理员”数据，类型为 ``str``。
+    :param _legacy_admin: 兼容旧调用方的参数，不参与管理员身份来源，类型为 ``str | None``。
     :return: 返回准备管理员得到的结果，返回类型为 ``tuple[str, dict[str, str]]``。
     """
-    _register(admin, "admin")
-    token = _login(admin)
+    admin = os.getenv(ADMIN_USERNAME_ENV)
+    admin_password = os.getenv(ADMIN_PASSWORD_ENV)
+    assert admin and admin_password, (
+        f"Web smoke requires pre-created admin credentials in {ADMIN_USERNAME_ENV} and {ADMIN_PASSWORD_ENV}"
+    )
+    token = _login(admin, admin_password)
     return token, auth_headers(token)
 
 
@@ -104,15 +110,14 @@ def main() -> None:
 
     suffix = str(int(time.time()))
     employee = f"m3_emp_{suffix}"
-    admin = f"m3_admin_{suffix}"
 
     print("M3 smoke: health")
     response = requests.get(f"{BASE_URL}/health", timeout=10)
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "ok", response.text
 
-    print("M3 smoke: register/login admin")
-    admin_token, admin_headers = _prepare_admin(admin)
+    print("M3 smoke: login pre-created admin")
+    admin_token, admin_headers = _prepare_admin()
 
     print("M3 smoke: rebuild knowledge index")
     response = requests.post(f"{BASE_URL}/api/knowledge/rebuild", headers=admin_headers, timeout=300)
