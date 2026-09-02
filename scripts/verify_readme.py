@@ -36,7 +36,6 @@ REQUIRED_PHRASES = [
     "只有 LLM 生成层走云端 API",
     "API key 只走环境变量",
     "主要函数介绍",
-    "F:\\code\\knowledge_agent\\.venv\\Scripts\\python.exe",
     "本地全量模式",
     "ECS 轻量模式",
     "bge-base-zh-v1.5",
@@ -45,6 +44,8 @@ REQUIRED_PHRASES = [
     "VLM_ENABLED=false",
     "RERANKER_ENABLED=false",
     "模型、密钥和业务数据不随 Git 提供",
+    "PROJECT_ROOT / models / bge-base-zh-v1.5",
+    "BGE_MODEL_PATH",
 ]
 
 REQUIRED_COMMAND_FRAGMENTS = [
@@ -56,6 +57,15 @@ REQUIRED_COMMAND_FRAGMENTS = [
     "scripts\\verify_readme.py",
     "systemctl",
     "8501",
+    "git clone",
+    "python -m venv .venv",
+    ".\\.venv\\Scripts\\Activate.ps1",
+    ".venv\\Scripts\\python.exe -m pip install -r requirements.txt",
+    "Copy-Item .env.example .env",
+]
+
+FORBIDDEN_PHRASES = [
+    "F:\\code\\knowledge_agent",
 ]
 
 
@@ -78,13 +88,17 @@ def main() -> int:
         if fragment not in readme:
             failures.append(f"README missing command fragment: {fragment}")
 
+    for phrase in FORBIDDEN_PHRASES:
+        if phrase in readme:
+            failures.append(f"README contains machine-specific path: {phrase}")
+
     for relative_path in REQUIRED_PATHS:
         if not (PROJECT_ROOT / relative_path).exists():
             failures.append(f"missing path: {relative_path}")
 
-    python_commands = re.findall(r"F:\\code\\knowledge_agent\\\.venv\\Scripts\\python\.exe[^\n`]*", readme)
+    python_commands = re.findall(r"\.venv\\Scripts\\python\.exe[^\n`]*", readme)
     if not python_commands:
-        failures.append("README has no .venv python command")
+        failures.append("README has no portable .venv python command")
 
     return _finish(failures)
 

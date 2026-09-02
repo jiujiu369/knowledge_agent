@@ -30,30 +30,28 @@ models/
 └── qwen2.5-vl/
 ```
 
-环境：
-
-- 项目路径：`F:\code\knowledge_agent`
-- Python：`F:\code\knowledge_agent\.venv\Scripts\python.exe`
-- 固定版本：Python 3.12.9
-
-首次配置时复制模板，并在本机 `.env` 填入有效的 `AGNES_API_KEY` 或 `ARK_API_KEY`；不要把该文件、模型目录或 `datas/` 提交到 Git。
+环境：Python 3.12.9。以下 Windows PowerShell 命令从 Git 克隆后在任意本地目录创建独立环境；`<仓库 HTTPS 地址>` 由部署者替换为实际仓库地址。
 
 ```powershell
+git clone <仓库 HTTPS 地址> knowledge_agent
+Set-Location .\knowledge_agent
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item .env.example .env
-F:\code\knowledge_agent\.venv\Scripts\python.exe --version
 ```
 
-本地全量模式使用 `.env.example` 中的 `VLM_ENABLED=true` 和 `RERANKER_ENABLED=true`，并要求上述三个模型目录完整可读。启动后端与前端：
+在本机 `.env` 填入有效的 `AGNES_API_KEY` 或 `ARK_API_KEY`，并自行准备上述三个模型目录；不要把 `.env`、模型目录或 `datas/` 提交到 Git。本地全量模式使用 `.env.example` 中的 `VLM_ENABLED=true` 和 `RERANKER_ENABLED=true`。启动后端与前端：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false
+.venv\Scripts\python.exe -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000
+.venv\Scripts\python.exe -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false
 ```
 
 也可使用本地启动器：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe web/local_launcher.py
+.venv\Scripts\python.exe web/local_launcher.py
 ```
 
 访问地址：后端健康检查 `http://127.0.0.1:8000/health`，Swagger `http://127.0.0.1:8000/docs`，前端 `http://localhost:8501`。
@@ -230,55 +228,55 @@ sudo -u knowledge-agent -E /opt/knowledge_agent/.venv/bin/python /opt/knowledge_
 后端健康检查：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from fastapi.testclient import TestClient; from agent_server.main import app; r=TestClient(app).get('/health'); print(r.status_code, r.text)"
+.venv\Scripts\python.exe -c "from fastapi.testclient import TestClient; from agent_server.main import app; r=TestClient(app).get('/health'); print(r.status_code, r.text)"
 ```
 
 云端 LLM 连通性：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from agent_server.core.llm_client import chat_completion; print(chat_completion([{'role':'user','content':'只回复 OK'}], temperature=0))"
+.venv\Scripts\python.exe -c "from agent_server.core.llm_client import chat_completion; print(chat_completion([{'role':'user','content':'只回复 OK'}], temperature=0))"
 ```
 
 本地 VLM 状态：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from agent_server.rag.loader import vlm_status; import json; print(json.dumps(vlm_status(), ensure_ascii=False, indent=2))"
+.venv\Scripts\python.exe -c "from agent_server.rag.loader import vlm_status; import json; print(json.dumps(vlm_status(), ensure_ascii=False, indent=2))"
 ```
 
 RAG 冒烟：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m agent_server.rag.smoke_test
+.venv\Scripts\python.exe -m agent_server.rag.smoke_test
 ```
 
 后端冒烟：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m agent_server.smoke_test
+.venv\Scripts\python.exe -m agent_server.smoke_test
 ```
 
 Harness 测试：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m pytest harness_test -q
+.venv\Scripts\python.exe -m pytest harness_test -q
 ```
 
 M4 测试与短压测：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe run_harness.py --stress-duration 10s
+.venv\Scripts\python.exe run_harness.py --stress-duration 10s
 ```
 
 M5 Loop 优化报告：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m loop_optimizer.run_loop
+.venv\Scripts\python.exe -m loop_optimizer.run_loop
 ```
 
 README 校验：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
+.venv\Scripts\python.exe scripts\verify_readme.py
 ```
 
 ## 文档
@@ -302,7 +300,7 @@ F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
 
 - loader：已支持 PDF、`.docx`、`.doc` 转换兜底、表格 Markdown 化、插图 OCR / EMF 文本抽取。
 - chunker：表格块和插图块保持完整语义边界，长文本按窗口切分。
-- embed_loader：固定使用本地 `F:\code\knowledge_agent\models\bge-base-zh-v1.5`，维度校验为 768。
+- embed_loader：默认使用本地 `PROJECT_ROOT / models / bge-base-zh-v1.5`，可通过 `BGE_MODEL_PATH` 覆盖；维度校验为 768。
 - vector_store：单 Chroma，本地持久化到 `datas/chroma`，异常时保留关键词兜底。
 - reranker：`models\bge-reranker-base` 已就位；`smoke_test` 会设置 `RERANKER_ENABLED=true` 并验证 Top-1 重排探针。
 - VLM：`models\qwen2.5-vl` 本地权重已就位，加载配置包含 `load_in_4bit=True`；当前 `.venv` 已安装 `bitsandbytes`，真实 VLM 加载和图片描述链路可用。若后续环境缺少 4-bit 依赖，插图语义会回退为 PaddleOCR 文本。
@@ -310,6 +308,6 @@ F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
 M1 验证命令：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m agent_server.rag.smoke_test
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m pytest harness_test\test_m1_rag.py -q
+.venv\Scripts\python.exe -m agent_server.rag.smoke_test
+.venv\Scripts\python.exe -m pytest harness_test\test_m1_rag.py -q
 ```
