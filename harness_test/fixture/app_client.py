@@ -50,8 +50,13 @@ def auth_headers(client: TestClient, username: str, role: str = "employee", pass
     :param password: 函数处理所需的“密码”数据，类型为 ``str``。
     :return: 返回认证请求头得到的结果，返回类型为 ``dict[str, str]``。
     """
-    register = client.post("/api/auth/register", json={"username": username, "password": password, "role": role})
-    assert register.status_code == 200, register.text
+    if role == "admin":
+        from agent_server.core.auth import register_user
+
+        register_user(username, password, role)
+    else:
+        register = client.post("/api/auth/register", json={"username": username, "password": password, "role": role})
+        assert register.status_code == 200, register.text
     login = client.post("/api/auth/login", json={"username": username, "password": password})
     assert login.status_code == 200, login.text
     return {"Authorization": f"Bearer {login.json()['data']['token']}"}

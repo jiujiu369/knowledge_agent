@@ -109,10 +109,9 @@ def test_register_login_chat_ticket_and_rbac(tmp_path, monkeypatch):
     forbidden = client.post("/api/tools/export_ticket_stat", json={}, headers=auth_headers)
     assert forbidden.status_code == 403
 
-    client.post(
-        "/api/auth/register",
-        json={"username": "root", "password": "Passw0rd!", "role": "admin"},
-    )
+    from agent_server.core.auth import register_user
+
+    register_user("root", "Passw0rd!", "admin")
     admin_login = client.post("/api/auth/login", json={"username": "root", "password": "Passw0rd!"})
     admin_headers = {"Authorization": f"Bearer {admin_login.json()['data']['token']}"}
     export = client.post("/api/tools/export_ticket_stat", json={}, headers=admin_headers)

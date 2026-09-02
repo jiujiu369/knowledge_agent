@@ -37,7 +37,9 @@ def test_admin_creates_user_with_default_password_and_user_changes_password(tmp_
     """
     client = _client(tmp_path, monkeypatch)
 
-    client.post("/api/auth/register", json={"username": "root", "password": "Passw0rd!", "role": "admin"})
+    from agent_server.core.auth import register_user
+
+    register_user("root", "Passw0rd!", "admin")
     admin_login = client.post("/api/auth/login", json={"username": "root", "password": "Passw0rd!"})
     admin_headers = {"Authorization": f"Bearer {admin_login.json()['data']['token']}"}
 
@@ -127,7 +129,9 @@ def test_admin_cannot_delete_or_reset_self(tmp_path, monkeypatch):
     """
     client = _client(tmp_path, monkeypatch)
 
-    client.post("/api/auth/register", json={"username": "root", "password": "Passw0rd!", "role": "admin"})
+    from agent_server.core.auth import register_user
+
+    register_user("root", "Passw0rd!", "admin")
     admin_login = client.post("/api/auth/login", json={"username": "root", "password": "Passw0rd!"})
     admin_headers = {"Authorization": f"Bearer {admin_login.json()['data']['token']}"}
 
