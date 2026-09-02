@@ -105,25 +105,29 @@ def build_graph():
     return graph.compile()
 
 
-def run_agent(user: dict[str, Any], question: str) -> dict[str, Any]:
+def run_agent(user: dict[str, Any], question: str, conversation_id: int | None = None) -> dict[str, Any]:
     """运行智能体。
 
     :param user: 函数处理所需的“用户”数据，类型为 ``dict[str, Any]``。
     :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+    :param conversation_id: 当前会话编号。
     :return: 返回运行智能体得到的结果，返回类型为 ``dict[str, Any]``。
     """
-    state = build_graph().invoke(AgentState(user=user, question=question))
+    state = build_graph().invoke(AgentState(user=user, question=question, conversation_id=conversation_id))
     return graph_nodes.output_node(_as_agent_state(state))
 
 
-def run_agent_events(user: dict[str, Any], question: str) -> Iterator[dict[str, Any]]:
+def run_agent_events(
+    user: dict[str, Any], question: str, conversation_id: int | None = None
+) -> Iterator[dict[str, Any]]:
     """运行智能体`events`。
 
     :param user: 函数处理所需的“用户”数据，类型为 ``dict[str, Any]``。
     :param question: 函数处理所需的“问题”数据，类型为 ``str``。
+    :param conversation_id: 当前会话编号。
     :return: 无返回值；函数通过副作用、断言或异常完成其职责。
     """
-    state = AgentState(user=user, question=question)
+    state = AgentState(user=user, question=question, conversation_id=conversation_id)
     emitted = 0
     for chunk in build_graph().stream(state, stream_mode="updates"):
         for updates in chunk.values():

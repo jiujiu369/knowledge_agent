@@ -10,7 +10,9 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from tkinter import BOTH, END, LEFT, RIGHT, Button, Frame, Label, StringVar, Text, Tk, messagebox, simpledialog
+from tkinter import BOTH, END, LEFT, RIGHT, Button, Entry, Frame, Label, StringVar, Text, Tk, messagebox, simpledialog
+
+from web.frontend_api import localize_error_message
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +23,92 @@ LOG_DIR = PROJECT_ROOT / "docs" / "logs"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8000
 FRONTEND_PORT = 8501
+
+
+def localize_launcher_error(error: Exception) -> str:
+    """将启动器异常转换为安全的中文提示。
+
+    :param error: 启动器捕获的异常。
+    :return: 安全中文错误提示。
+    """
+    return localize_error_message(error)
+
+
+class ChineseInputDialog(simpledialog.Dialog):
+    """使用中文操作按钮的单行输入弹窗。"""
+
+    def __init__(self, parent: Tk, title: str, prompt: str, show: str | None = None) -> None:
+        """初始化中文输入弹窗。
+
+        :param parent: 父窗口。
+        :param title: 弹窗标题。
+        :param prompt: 输入提示。
+        :param show: 输入字符替代符。
+        :return: 无返回值。
+        """
+        self.prompt = prompt
+        self.show = show
+        self.entry: Entry | None = None
+        self.result: str | None = None
+        super().__init__(parent, title)
+
+    def body(self, master: Frame) -> Entry:
+        """创建提示文字和输入框。
+
+        :param master: 弹窗内容容器。
+        :return: 需要默认聚焦的输入框。
+        """
+        Label(master, text=self.prompt, justify=LEFT).grid(row=0, padx=8, pady=(8, 4), sticky="w")
+        self.entry = Entry(master, show=self.show or "", width=32)
+        self.entry.grid(row=1, padx=8, pady=(0, 8), sticky="ew")
+        return self.entry
+
+    def buttonbox(self) -> None:
+        """创建中文确定和取消按钮。
+
+        :return: 无返回值。
+        """
+        box = Frame(self)
+        Button(box, text="确定", width=10, command=self.ok, default="active").pack(side=LEFT, padx=5, pady=5)
+        Button(box, text="取消", width=10, command=self.cancel).pack(side=LEFT, padx=5, pady=5)
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+        box.pack()
+
+    def apply(self) -> None:
+        """保存输入结果。
+
+        :return: 无返回值。
+        """
+        self.result = self.entry.get() if self.entry is not None else ""
+
+
+def ask_chinese_string(parent: Tk, title: str, prompt: str, show: str | None = None) -> str | None:
+    """显示中文单行输入弹窗并返回输入内容。
+
+    :param parent: 父窗口。
+    :param title: 弹窗标题。
+    :param prompt: 输入提示。
+    :param show: 输入字符替代符。
+    :return: 用户输入或取消标记。
+    """
+    return ChineseInputDialog(parent, title, prompt, show).result
+
+
+def backend_control_states(running: bool, busy: bool = False) -> dict[str, str]:
+    """根据后端运行状态返回启动、停止和重启按钮状态。
+
+    :param running: 后端当前是否正在运行。
+    :param busy: 后端是否正在执行启动、停止或重启操作。
+    :return: 返回三个后端控制按钮对应的 Tkinter 状态。
+    """
+    if busy:
+        return {"start": "disabled", "stop": "disabled", "restart": "disabled"}
+    return {
+        "start": "disabled" if running else "normal",
+        "stop": "normal" if running else "disabled",
+        "restart": "normal" if running else "disabled",
+    }
 
 
 def parse_netstat_pids(output: str, port: int) -> set[int]:
@@ -51,7 +139,7 @@ class LocalLauncher:
         :return: 无返回值；函数通过副作用、断言或异常完成其职责。
         """
         self.root = Tk()
-        self.root.title("Knowledge Agent 本地启动器")
+        self.root.title("企业知识智能助手本地启动器")
         self.root.geometry("760x520")
         self.root.minsize(680, 460)
 
@@ -69,7 +157,7 @@ class LocalLauncher:
 
         :return: 无返回值；函数通过副作用、断言或异常完成其职责。
         """
-        title = Label(self.root, text="Knowledge Agent 本地启动器", font=("Microsoft YaHei UI", 18, "bold"))
+        title = Label(self.root, text="企业知识智能助手本地启动器", font=("Microsoft YaHei UI", 18, "bold"))
         title.pack(anchor="w", padx=18, pady=(16, 8))
 
         status_frame = Frame(self.root)
@@ -80,21 +168,35 @@ class LocalLauncher:
         button_frame = Frame(self.root)
         button_frame.pack(fill="x", padx=18, pady=10)
 
-        buttons = (
-            ("检查状态", self.check_status),
-            ("启动后端", self.start_backend),
-            ("重启后端", self.restart_backend),
+        Button(button_frame, text="检查状态", command=self.check_status, width=18).pack(side=LEFT, padx=(0, 8), pady=4)
+        self.start_backend_button = Button(button_frame, text="启动后端", command=self.start_backend, width=18)
+        self.start_backend_button.pack(side=LEFT, padx=(0, 8), pady=4)
+        self.stop_backend_button = Button(button_frame, text="停止后端", command=self.stop_backend, width=18)
+        self.stop_backend_button.pack(side=LEFT, padx=(0, 8), pady=4)
+        self.restart_backend_button = Button(button_frame, text="重启后端", command=self.restart_backend, width=18)
+        self.restart_backend_button.pack(side=LEFT, padx=(0, 8), pady=4)
+
+        button_frame = Frame(self.root)
+        button_frame.pack(fill="x", padx=18, pady=(0, 10))
+        second_row_buttons = (
             ("注册管理员", self.register_admin_dialog),
             ("启动前端", self.start_frontend),
             ("打开前端页面", lambda: webbrowser.open(FRONTEND_URL)),
             ("打开后端健康检查", lambda: webbrowser.open(f"{BACKEND_URL}/health")),
-            ("停止本窗口启动的服务", self.stop_started_processes),
         )
-        for index, (text, command) in enumerate(buttons):
-            if index == 4:
-                button_frame = Frame(self.root)
-                button_frame.pack(fill="x", padx=18, pady=(0, 10))
+        for text, command in second_row_buttons:
             Button(button_frame, text=text, command=command, width=18).pack(side=LEFT, padx=(0, 8), pady=4)
+
+        button_frame = Frame(self.root)
+        button_frame.pack(fill="x", padx=18, pady=(0, 10))
+        Button(
+            button_frame,
+            text="停止本窗口启动的服务",
+            command=self.stop_started_processes,
+            width=18,
+        ).pack(side=LEFT, padx=(0, 8), pady=4)
+
+        self._set_backend_controls(running=False)
 
         url_frame = Frame(self.root)
         url_frame.pack(fill="x", padx=18, pady=(4, 8))
@@ -153,7 +255,32 @@ class LocalLauncher:
         """
         self.backend_status.set(backend)
         self.frontend_status.set(frontend)
+        self._set_backend_controls(running=backend == "后端：已运行")
         self._log(f"{backend}；{frontend}")
+
+    def _set_backend_controls(self, running: bool, busy: bool = False) -> None:
+        """同步后端控制按钮的可用状态。
+
+        :param running: 后端当前是否正在运行。
+        :param busy: 后端是否正在执行控制操作。
+        :return: 无返回值；函数直接更新按钮状态。
+        """
+        states = backend_control_states(running, busy)
+        self.start_backend_button.configure(state=states["start"])
+        self.stop_backend_button.configure(state=states["stop"])
+        self.restart_backend_button.configure(state=states["restart"])
+
+    def _apply_backend_state(self, status: str, running: bool, message: str) -> None:
+        """在主线程更新后端状态、按钮和日志。
+
+        :param status: 要显示的后端状态文本。
+        :param running: 后端当前是否正在运行。
+        :param message: 要写入启动器日志的消息。
+        :return: 无返回值；函数直接更新界面。
+        """
+        self.backend_status.set(status)
+        self._set_backend_controls(running=running)
+        self._log(message)
 
     def start_backend(self) -> None:
         """启动后端服务。
@@ -162,16 +289,48 @@ class LocalLauncher:
         """
         if self._http_ok(f"{BACKEND_URL}/health"):
             self.backend_status.set("后端：已运行")
+            self._set_backend_controls(running=True)
             self._log("后端已经在 8000 端口运行。")
             return
+        self.backend_status.set("后端：正在启动")
+        self._set_backend_controls(running=False, busy=True)
         self._start_backend_process()
+
+    def stop_backend(self) -> None:
+        """停止占用 8000 端口的后端服务。
+
+        :return: 无返回值；停止任务在后台线程执行。
+        """
+        self.backend_status.set("后端：正在停止")
+        self._set_backend_controls(running=True, busy=True)
+        self._log("正在停止后端。")
+        threading.Thread(target=self._stop_backend_worker, daemon=True).start()
+
+    def _stop_backend_worker(self) -> None:
+        """在后台停止后端并等待端口释放。
+
+        :return: 无返回值；结果通过主线程更新至界面。
+        """
+        self._stop_backend()
+        for _ in range(20):
+            if not self._port_open(BACKEND_HOST, BACKEND_PORT):
+                self.root.after(
+                    0,
+                    lambda: self._apply_backend_state("后端：未运行", False, "后端已停止，8000 端口已释放。"),
+                )
+                return
+            time.sleep(0.5)
+        self.root.after(
+            0,
+            lambda: self._apply_backend_state("后端：停止失败", True, "后端停止失败，8000 端口仍被占用。"),
+        )
 
     def register_admin_dialog(self) -> None:
         """注册管理员`dialog`。
 
         :return: 无返回值；函数通过副作用、断言或异常完成其职责。
         """
-        username = simpledialog.askstring("注册管理员", "请输入管理员账号：", parent=self.root)
+        username = ask_chinese_string(self.root, "注册管理员", "请输入管理员账号：")
         if username is None:
             return
         username = username.strip()
@@ -179,14 +338,14 @@ class LocalLauncher:
             messagebox.showerror("注册失败", "管理员账号长度必须为 3 到 64 个字符。")
             return
 
-        password = simpledialog.askstring("注册管理员", "请输入管理员密码（至少 8 位）：", parent=self.root, show="*")
+        password = ask_chinese_string(self.root, "注册管理员", "请输入管理员密码（至少 8 位）：", show="*")
         if password is None:
             return
         if not 8 <= len(password) <= 128:
             messagebox.showerror("注册失败", "管理员密码长度必须为 8 到 128 个字符。")
             return
 
-        confirm_password = simpledialog.askstring("注册管理员", "请再次输入管理员密码：", parent=self.root, show="*")
+        confirm_password = ask_chinese_string(self.root, "注册管理员", "请再次输入管理员密码：", show="*")
         if confirm_password is None:
             return
         if password != confirm_password:
@@ -196,8 +355,7 @@ class LocalLauncher:
         try:
             user = self._create_local_admin(username, password)
         except Exception as exc:
-            detail = getattr(exc, "detail", None) or str(exc)
-            messagebox.showerror("注册失败", f"管理员账号创建失败：{detail}")
+            messagebox.showerror("注册失败", localize_launcher_error(exc))
             self._log(f"管理员账号注册失败：{username}。")
             return
 
@@ -232,6 +390,7 @@ class LocalLauncher:
         :return: 无返回值；函数通过副作用、断言或异常完成其职责。
         """
         self.root.after(0, lambda: self.backend_status.set("后端：正在重启"))
+        self.root.after(0, lambda: self._set_backend_controls(running=True, busy=True))
         self.root.after(0, lambda: self._log("正在重启后端。"))
         self._stop_backend()
         for _ in range(20):
@@ -239,8 +398,10 @@ class LocalLauncher:
                 break
             time.sleep(0.5)
         if self._port_open(BACKEND_HOST, BACKEND_PORT):
-            self.root.after(0, lambda: self.backend_status.set("后端：重启失败"))
-            self.root.after(0, lambda: self._log("8000 端口仍被占用，未启动新的后端。"))
+            self.root.after(
+                0,
+                lambda: self._apply_backend_state("后端：重启失败", True, "8000 端口仍被占用，未启动新的后端。"),
+            )
             return
         self.root.after(0, self._start_backend_process)
 
@@ -251,6 +412,7 @@ class LocalLauncher:
         """
         if not PYTHON_EXE.exists():
             messagebox.showerror("启动失败", f"找不到虚拟环境：{PYTHON_EXE}")
+            self._apply_backend_state("后端：启动失败", False, "找不到项目虚拟环境，后端未启动。")
             return
 
         LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -340,12 +502,15 @@ class LocalLauncher:
         """
         for _ in range(30):
             if self._http_ok(f"{BACKEND_URL}/health"):
-                self.root.after(0, lambda: self.backend_status.set("后端：已运行"))
-                self.root.after(0, lambda: self._log("后端启动成功。"))
+                self.root.after(0, lambda: self._apply_backend_state("后端：已运行", True, "后端启动成功。"))
                 return
             time.sleep(1)
-        self.root.after(0, lambda: self.backend_status.set("后端：启动失败"))
-        self.root.after(0, lambda: self._log("后端 30 秒内未就绪，请查看 docs\\logs\\backend.log"))
+        self.root.after(
+            0,
+            lambda: self._apply_backend_state(
+                "后端：启动失败", False, "后端 30 秒内未就绪，请查看 docs\\logs\\backend.log"
+            ),
+        )
 
     def start_frontend(self) -> None:
         """启动前端服务。

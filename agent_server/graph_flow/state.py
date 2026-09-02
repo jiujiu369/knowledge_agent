@@ -8,6 +8,7 @@ from typing import Any
 class AgentState:
     user: dict[str, Any]
     question: str
+    conversation_id: int | None = None
     rag_results: list[dict[str, Any]] = field(default_factory=list)
     similar_tickets: list[dict[str, Any]] = field(default_factory=list)
     llm_answer: str = ""

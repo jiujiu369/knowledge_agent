@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from docx import Document
+
 from harness_test.fixture.app_client import auth_headers
 
 
@@ -126,3 +128,30 @@ def test_admin_deletes_uploaded_document(api_client, tmp_path, monkeypatch):
     assert response.json()["data"]["deleted"]["id"] == doc["id"]
     assert not source.exists()
     assert db.list_docs() == []
+
+
+def test_admin_reads_original_docx_text(api_client, tmp_path):
+    """管理员可以读取已入库 Word 文档的正文。
+
+    :param api_client: 隔离测试客户端。
+    :param tmp_path: pytest 临时目录。
+    :return: 无返回值；断言接口返回原始正文。
+    """
+    import agent_server.core.db as db
+
+    admin_headers = auth_headers(api_client, "root", role="admin")
+    source = tmp_path / "datas" / "employee-handbook.docx"
+    document = Document()
+    document.add_paragraph("员工手册原始正文")
+    document.add_paragraph("第二段内容")
+    document.save(source)
+    doc = db.upsert_doc(str(source), source.name, chunk_count=2)
+
+    response = api_client.get(f"/api/knowledge/{doc['id']}/content", headers=admin_headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"] == {
+        "id": doc["id"],
+        "title": source.name,
+        "content": "员工手册原始正文\n\n第二段内容",
+    }

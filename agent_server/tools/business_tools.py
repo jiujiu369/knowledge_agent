@@ -69,6 +69,7 @@ def create_consult_ticket(payload: CreateConsultTicketInput, current_user: dict[
         creator_id=current_user["id"],
         answer=payload.answer,
         metadata=json.dumps({"source": "agent"}, ensure_ascii=False),
+        ticket_type="consultation",
     )
     return {"ticket": ticket}
 

@@ -9,7 +9,7 @@ from openai import OpenAI
 from agent_server.core.config import get_llm_settings
 
 
-MOCK_LLM_RESPONSE = '{"answer":"mock LLM 已接管，本次不会调用真实模型。","needs_ticket":true,"title":"mock 咨询"}'
+MOCK_LLM_RESPONSE = '{"answer":"模拟模型已接管，本次不会调用真实模型。","needs_ticket":true,"title":"模拟咨询"}'
 
 
 def mock_llm_enabled() -> bool:

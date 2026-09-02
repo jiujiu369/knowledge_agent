@@ -7,8 +7,10 @@ models/
 .cache/
 .tmp/
 .pytest_cache/
+.pytest_*/
 .streamlit_home/
 agent_server/logs/
+logs/
 web/*.log
 docs/logs/
 web/uploads/

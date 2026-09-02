@@ -40,7 +40,7 @@ def test_mock_llm_stream_does_not_require_real_api_key(monkeypatch):
     chunks = list(llm_client.stream_chat_completion([{"role": "user", "content": "测试"}]))
 
     assert chunks
-    assert "mock" in "".join(chunks).lower()
+    assert "模拟模型" in "".join(chunks)
 
 
 def test_real_llm_client_ignores_environment_proxy(monkeypatch):

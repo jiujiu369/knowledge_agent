@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from agent_server.api.utils import ok
 from agent_server.core import db
 from agent_server.core.auth import get_current_user
+from agent_server.rag.loader import convert_doc_to_docx, load_docx, load_pdf
 from agent_server.tools.business_tools import knowledge_manage
 from agent_server.tools.schemas import KnowledgeManageInput
 from common import constants
@@ -54,6 +55,45 @@ def upload_knowledge(file: Annotated[UploadFile, File()], current_user: Annotate
     with target.open("wb") as handle:
         shutil.copyfileobj(file.file, handle)
     return ok({"source_path": str(target)})
+
+
+@router.get("/{doc_id}/content")
+def get_knowledge_content(doc_id: int, current_user: Annotated[dict, Depends(get_current_user)]):
+    """读取已入库文档的原始正文。
+
+    :param doc_id: 文档编号。
+    :param current_user: 当前登录用户。
+    :return: 返回文档标题和提取后的正文。
+    """
+    knowledge_manage(KnowledgeManageInput(action="list"), current_user)
+    doc = db.get_doc(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="document not found")
+
+    source_path = Path(str(doc["source_path"]))
+    if not source_path.is_file():
+        raise HTTPException(status_code=404, detail="document source not found")
+
+    suffix = source_path.suffix.lower()
+    if suffix == ".pdf":
+        loaded = load_pdf(source_path, enable_ocr=False)
+    elif suffix == ".docx":
+        loaded = load_docx(source_path, enable_ocr=False)
+    elif suffix == ".doc":
+        converted = convert_doc_to_docx(source_path)
+        if converted is None:
+            raise HTTPException(status_code=422, detail="document conversion failed")
+        loaded = load_docx(converted, enable_ocr=False, original_path=source_path)
+    else:
+        raise HTTPException(status_code=400, detail="unsupported file type")
+
+    return ok(
+        {
+            "id": doc_id,
+            "title": str(doc.get("title") or source_path.name),
+            "content": "\n\n".join(block.text for block in loaded.blocks if block.text),
+        }
+    )
 
 
 @router.delete("/{doc_id}")

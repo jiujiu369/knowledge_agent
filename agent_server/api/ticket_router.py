@@ -11,7 +11,7 @@ from agent_server.core import db
 from agent_server.core.auth import get_current_user
 from agent_server.core.rbac import role_tier
 from agent_server.tools.business_tools import query_ticket_list
-from agent_server.tools.schemas import CreateConsultTicketInput, QueryTicketListInput
+from agent_server.tools.schemas import CreateConsultTicketInput, LeaveApplicationInput, QueryTicketListInput
 
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
@@ -21,7 +21,7 @@ class TicketStatusUpdate(BaseModel):
     status: str
 
 
-ALLOWED_TICKET_STATUSES = {"pending", "approved", "rejected", "closed"}
+ALLOWED_TICKET_STATUSES = {"pending", "approved", "rejected", "processed", "closed"}
 
 
 @router.get("")
@@ -50,8 +50,65 @@ def create_ticket(payload: CreateConsultTicketInput, current_user: Annotated[dic
         answer=payload.answer,
         metadata=json.dumps({"source": "user"}, ensure_ascii=False),
         status="pending",
+        ticket_type="consultation",
     )
-    return ok(ticket)
+    return ok(db.get_ticket(ticket["id"], current_user))
+
+
+@router.post("/leave")
+def create_leave_application(
+    payload: LeaveApplicationInput,
+    current_user: Annotated[dict, Depends(get_current_user)],
+):
+    """创建结构化请假申请。
+
+    :param payload: 已校验的请假申请字段。
+    :param current_user: 当前登录用户。
+    :return: 返回新建或幂等复用的请假工单。
+    """
+    ticket = db.create_ticket(
+        title="请假申请",
+        content=payload.reason,
+        creator_id=current_user["id"],
+        metadata=json.dumps({"source": "leave_form"}, ensure_ascii=False),
+        status="pending",
+        ticket_type="leave",
+        leave_type=payload.leave_type,
+        start_at=payload.start_at.isoformat(),
+        end_at=payload.end_at.isoformat(),
+        leave_days=payload.leave_days,
+        leave_reason=payload.reason,
+        request_id=payload.request_id,
+    )
+    return ok(db.get_ticket(ticket["id"], current_user))
+
+
+@router.post("/bulk-approve-consultations")
+def bulk_approve_consultations(
+    current_user: Annotated[dict, Depends(get_current_user)],
+):
+    """管理员一次批准全部待审批普通咨询工单。
+
+    :param current_user: 当前登录用户。
+    :return: 返回匹配数量、更新数量和工单编号。
+    """
+    if role_tier(current_user["role"]) != "admin":
+        raise HTTPException(status_code=403, detail="admin approval required")
+    return ok(db.bulk_approve_pending_consultations())
+
+
+@router.post("/bulk-process-open")
+def bulk_process_open_tickets(
+    current_user: Annotated[dict, Depends(get_current_user)],
+):
+    """管理员一次处理全部待处理的非请假工单。
+
+    :param current_user: 当前登录用户。
+    :return: 返回匹配数量、更新数量和已更新工单编号。
+    """
+    if role_tier(current_user["role"]) != "admin":
+        raise HTTPException(status_code=403, detail="admin approval required")
+    return ok(db.bulk_process_open_non_leave_tickets())
 
 
 @router.get("/{ticket_id}")
@@ -83,6 +140,13 @@ def update_ticket(ticket_id: int, payload: TicketStatusUpdate, current_user: Ann
         raise HTTPException(status_code=403, detail="admin approval required")
     if payload.status not in ALLOWED_TICKET_STATUSES:
         raise HTTPException(status_code=400, detail="unsupported ticket status")
+    existing = db.get_ticket(ticket_id, current_user, include_all=True)
+    if not existing:
+        raise HTTPException(status_code=404, detail="ticket not found")
+    if existing.get("ticket_type") == "leave" and (
+        existing.get("status") != "pending" or payload.status not in {"approved", "rejected"}
+    ):
+        raise HTTPException(status_code=400, detail="unsupported leave review transition")
     ticket = db.update_ticket_status(
         ticket_id,
         payload.status,

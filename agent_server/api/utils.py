@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from collections import defaultdict, deque
@@ -15,6 +16,8 @@ from common.constants import RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
 
 
 _REQUESTS: dict[str, deque[float]] = defaultdict(deque)
+LOGGER = logging.getLogger(__name__)
+GENERIC_ERROR_MESSAGE = "操作失败，请稍后重试；详细原因已记录到服务日志。"
 
 
 def rate_limit_disabled() -> bool:
@@ -37,17 +40,33 @@ def ok(data: Any = None, message: str = "ok") -> dict[str, Any]:
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
+    conversation_id: int | None = Field(default=None, gt=0)
+    request_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("message")
     @classmethod
     def message_valid(cls, value: str) -> str:
-        """消息`valid`。
+        """校验聊天消息。
 
-        :param value: 函数处理所需的“`value`”数据，类型为 ``str``。
-        :return: 返回消息`valid`得到的结果，返回类型为 ``str``。
+        :param value: 待校验的消息文本。
+        :return: 返回清理后的消息文本。
         """
         return validate_user_text(value)
 
+
+class ConversationCreateRequest(BaseModel):
+    title: str = Field(default="新对话", max_length=80)
+    request_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @field_validator("title")
+    @classmethod
+    def title_valid(cls, value: str) -> str:
+        """清理会话标题，空标题回退为默认名称。
+
+        :param value: 待校验的会话标题。
+        :return: 返回清理后的会话标题。
+        """
+        return " ".join(value.split()) or "新对话"
 
 async def rate_limit_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """`rate``limit``middleware`。
@@ -80,8 +99,12 @@ async def uniform_exception_middleware(request: Request, call_next: Callable[[Re
         response = await call_next(request)
     except HTTPException as exc:
         return JSONResponse(status_code=exc.status_code, content={"code": "error", "message": str(exc.detail), "data": None})
-    except Exception as exc:
-        return JSONResponse(status_code=500, content={"code": "internal_error", "message": str(exc), "data": None})
+    except Exception:
+        LOGGER.exception("处理请求时发生未识别异常")
+        return JSONResponse(
+            status_code=500,
+            content={"code": "internal_error", "message": GENERIC_ERROR_MESSAGE, "data": None},
+        )
 
     if request.url.path in {"/health", "/openapi.json"} or request.url.path.startswith("/docs"):
         return response

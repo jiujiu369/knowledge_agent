@@ -133,3 +133,34 @@ def test_api_stream_chat_returns_tool_and_done_events(api_client, monkeypatch):
     assert response.status_code == 200
     assert "event: tool" in body
     assert "event: done" in body
+
+
+def test_doc_retrieve_tool_event_contains_readable_source_title(api_client, monkeypatch):
+    """SSE 检索事件只携带精简、可读的来源元数据。
+
+    :param api_client: 隔离测试客户端。
+    :param monkeypatch: pytest 运行时替换夹具。
+    :return: 无返回值；断言 SSE 事件内容。
+    """
+    from common.models import RetrievalResult
+    from web.frontend_api import parse_sse_events
+
+    result = RetrievalResult(
+        doc_id="chunk-7",
+        content="不得进入工具事件的文档正文",
+        score=0.9123,
+        source_path=r"F:\knowledge\员工手册.pdf",
+        metadata={"page": 3, "block_index": 6},
+    )
+    _mock_retrieve(monkeypatch, [result])
+    headers = auth_headers(api_client, "alice")
+
+    with api_client.stream("POST", "/api/chat/stream", json={"message": "年假规定"}, headers=headers) as response:
+        events = list(parse_sse_events(response.iter_lines()))
+
+    retrieval_event = next(event["data"] for event in events if event["event"] == "tool" and event["data"]["tool"] == "doc_retrieve")
+    assert retrieval_event["count"] == 1
+    assert retrieval_event["hits"] == [
+        {"title": "员工手册.pdf", "source_path": result.source_path, "page": 3, "chunk": 6, "score": 0.9123}
+    ]
+    assert "content" not in retrieval_event["hits"][0]

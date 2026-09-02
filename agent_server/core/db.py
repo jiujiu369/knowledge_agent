@@ -93,6 +93,7 @@ class SQLitePool:
                     role TEXT NOT NULL DEFAULT 'employee',
                     token TEXT UNIQUE,
                     is_deleted INTEGER NOT NULL DEFAULT 0,
+                    next_conversation_sequence INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS ticket (
@@ -103,9 +104,26 @@ class SQLitePool:
                     creator_id INTEGER NOT NULL,
                     answer TEXT,
                     metadata TEXT NOT NULL DEFAULT '{}',
+                    ticket_type TEXT NOT NULL DEFAULT 'consultation',
+                    leave_type TEXT,
+                    start_at TEXT,
+                    end_at TEXT,
+                    leave_days REAL,
+                    leave_reason TEXT,
+                    request_id TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     FOREIGN KEY (creator_id) REFERENCES user(id)
+                );
+                CREATE TABLE IF NOT EXISTS conversation (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    sequence_no INTEGER,
+                    request_id TEXT,
+                    title TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES user(id)
                 );
                 CREATE TABLE IF NOT EXISTS chat_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,9 +132,13 @@ class SQLitePool:
                     answer TEXT NOT NULL,
                     ticket_id INTEGER,
                     tool_events TEXT NOT NULL DEFAULT '[]',
+                    conversation_id INTEGER,
+                    request_id TEXT,
+                    is_error INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (user_id) REFERENCES user(id),
-                    FOREIGN KEY (ticket_id) REFERENCES ticket(id)
+                    FOREIGN KEY (ticket_id) REFERENCES ticket(id),
+                    FOREIGN KEY (conversation_id) REFERENCES conversation(id)
                 );
                 CREATE TABLE IF NOT EXISTS doc (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,6 +154,112 @@ class SQLitePool:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(user)").fetchall()}
             if "is_deleted" not in columns:
                 conn.execute("ALTER TABLE user ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+            if "next_conversation_sequence" not in columns:
+                conn.execute("ALTER TABLE user ADD COLUMN next_conversation_sequence INTEGER NOT NULL DEFAULT 1")
+            conversation_columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(conversation)").fetchall()
+            }
+            if "sequence_no" not in conversation_columns:
+                conn.execute("ALTER TABLE conversation ADD COLUMN sequence_no INTEGER")
+            if "request_id" not in conversation_columns:
+                conn.execute("ALTER TABLE conversation ADD COLUMN request_id TEXT")
+            chat_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chat_history)").fetchall()}
+            if "conversation_id" not in chat_columns:
+                conn.execute("ALTER TABLE chat_history ADD COLUMN conversation_id INTEGER REFERENCES conversation(id)")
+            if "request_id" not in chat_columns:
+                conn.execute("ALTER TABLE chat_history ADD COLUMN request_id TEXT")
+            if "is_error" not in chat_columns:
+                conn.execute("ALTER TABLE chat_history ADD COLUMN is_error INTEGER NOT NULL DEFAULT 0")
+            ticket_columns = {row["name"] for row in conn.execute("PRAGMA table_info(ticket)").fetchall()}
+            for name, definition in {
+                "ticket_type": "TEXT NOT NULL DEFAULT 'consultation'",
+                "leave_type": "TEXT",
+                "start_at": "TEXT",
+                "end_at": "TEXT",
+                "leave_days": "REAL",
+                "leave_reason": "TEXT",
+                "request_id": "TEXT",
+            }.items():
+                if name not in ticket_columns:
+                    conn.execute(f"ALTER TABLE ticket ADD COLUMN {name} {definition}")
+            conn.execute("UPDATE ticket SET ticket_type = 'consultation' WHERE ticket_type IS NULL OR ticket_type = ''")
+            legacy_users = conn.execute(
+                """
+                SELECT user_id, MIN(created_at) AS created_at, MAX(created_at) AS updated_at
+                FROM chat_history
+                WHERE conversation_id IS NULL
+                GROUP BY user_id
+                """
+            ).fetchall()
+            for legacy in legacy_users:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO conversation (user_id, title, created_at, updated_at)
+                    VALUES (?, '历史对话', ?, ?)
+                    """,
+                    (legacy["user_id"], legacy["created_at"], legacy["updated_at"]),
+                )
+                conn.execute(
+                    "UPDATE chat_history SET conversation_id = ? WHERE user_id = ? AND conversation_id IS NULL",
+                    (cursor.lastrowid, legacy["user_id"]),
+                )
+            conversation_users = conn.execute("SELECT DISTINCT user_id FROM conversation").fetchall()
+            for conversation_user in conversation_users:
+                user_id = int(conversation_user["user_id"])
+                rows = conn.execute(
+                    """
+                    SELECT id, sequence_no, title
+                    FROM conversation
+                    WHERE user_id = ?
+                    ORDER BY created_at ASC, id ASC
+                    """,
+                    (user_id,),
+                ).fetchall()
+                used = {int(row["sequence_no"]) for row in rows if row["sequence_no"] is not None}
+                next_sequence = 1
+                for row in rows:
+                    sequence_no = row["sequence_no"]
+                    if sequence_no is None:
+                        while next_sequence in used:
+                            next_sequence += 1
+                        sequence_no = next_sequence
+                        used.add(sequence_no)
+                        conn.execute(
+                            "UPDATE conversation SET sequence_no = ? WHERE id = ?",
+                            (sequence_no, row["id"]),
+                        )
+                    if row["title"] == f"新对话 {sequence_no}":
+                        conn.execute(
+                            "UPDATE conversation SET title = ? WHERE id = ?",
+                            ("新对话", row["id"]),
+                        )
+                    next_sequence = max(next_sequence, int(sequence_no) + 1)
+                next_sequence = max(used, default=0) + 1
+                conn.execute(
+                    """
+                    UPDATE user
+                    SET next_conversation_sequence = MAX(next_conversation_sequence, ?)
+                    WHERE id = ?
+                    """,
+                    (next_sequence, user_id),
+                )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversation_user_updated ON conversation(user_id, updated_at DESC)")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_user_sequence ON conversation(user_id, sequence_no)"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_create_request "
+                "ON conversation(user_id, request_id) WHERE request_id IS NOT NULL"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_history_conversation ON chat_history(conversation_id, id DESC)")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_history_request "
+                "ON chat_history(user_id, conversation_id, request_id) WHERE request_id IS NOT NULL"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_leave_request "
+                "ON ticket(creator_id, request_id) WHERE request_id IS NOT NULL"
+            )
             conn.commit()
 
 
@@ -281,6 +409,13 @@ def create_ticket(
     answer: str = "",
     metadata: str = "{}",
     status: str = "pending",
+    ticket_type: str = "consultation",
+    leave_type: str | None = None,
+    start_at: str | None = None,
+    end_at: str | None = None,
+    leave_days: float | None = None,
+    leave_reason: str | None = None,
+    request_id: str | None = None,
 ) -> dict[str, Any]:
     """创建工单。
 
@@ -290,16 +425,40 @@ def create_ticket(
     :param answer: 函数处理所需的“`answer`”数据，类型为 ``str``。
     :param metadata: 函数处理所需的“元数据”数据，类型为 ``str``。
     :param status: 函数处理所需的“获取状态”数据，类型为 ``str``。
+    :param ticket_type: 工单类型，只允许普通咨询或请假申请。
+    :param leave_type: 请假类别。
+    :param start_at: 请假开始时间。
+    :param end_at: 请假结束时间。
+    :param leave_days: 请假天数。
+    :param leave_reason: 请假原因。
+    :param request_id: 工单提交幂等标识。
     :return: 返回创建工单得到的结果，返回类型为 ``dict[str, Any]``。
     """
+    if ticket_type not in {"consultation", "leave"}:
+        raise ValueError("unsupported ticket type")
     timestamp = now_iso()
     with pool().transaction() as conn:
+        if request_id is not None:
+            existing = conn.execute(
+                "SELECT * FROM ticket WHERE creator_id = ? AND request_id = ?",
+                (creator_id, request_id),
+            ).fetchone()
+            if existing:
+                return dict(existing)
         cursor = conn.execute(
             """
-            INSERT INTO ticket (title, content, status, creator_id, answer, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO ticket (
+                title, content, status, creator_id, answer, metadata, ticket_type,
+                leave_type, start_at, end_at, leave_days, leave_reason, request_id,
+                created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (title, content, status, creator_id, answer, metadata, timestamp, timestamp),
+            (
+                title, content, status, creator_id, answer, metadata, ticket_type,
+                leave_type, start_at, end_at, leave_days, leave_reason, request_id,
+                timestamp, timestamp,
+            ),
         )
         row = conn.execute("SELECT * FROM ticket WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return dict(row)
@@ -313,11 +472,17 @@ def list_tickets(user: dict[str, Any], include_all: bool = False) -> list[dict[s
     :return: 返回查询列表`tickets`得到的结果，返回类型为 ``list[dict[str, Any]]``。
     """
     with pool().connection() as conn:
+        sql = """
+            SELECT ticket.*, user.username AS creator_username, user.is_deleted AS creator_is_deleted
+            FROM ticket LEFT JOIN user ON user.id = ticket.creator_id
+        """
         if include_all:
-            rows = conn.execute("SELECT * FROM ticket ORDER BY id DESC").fetchall()
+            rows = conn.execute(sql + " ORDER BY ticket.id DESC").fetchall()
         else:
-            rows = conn.execute("SELECT * FROM ticket WHERE creator_id = ? ORDER BY id DESC", (user["id"],)).fetchall()
-    return [dict(row) for row in rows]
+            rows = conn.execute(
+                sql + " WHERE ticket.creator_id = ? ORDER BY ticket.id DESC", (user["id"],)
+            ).fetchall()
+    return [_public_ticket(row) for row in rows]
 
 
 def get_ticket(ticket_id: int, user: dict[str, Any], include_all: bool = False) -> dict[str, Any] | None:
@@ -329,14 +494,34 @@ def get_ticket(ticket_id: int, user: dict[str, Any], include_all: bool = False) 
     :return: 返回获取工单得到的结果，返回类型为 ``dict[str, Any] | None``。
     """
     with pool().connection() as conn:
-        if include_all:
-            row = conn.execute("SELECT * FROM ticket WHERE id = ?", (ticket_id,)).fetchone()
-        else:
-            row = conn.execute(
-                "SELECT * FROM ticket WHERE id = ? AND creator_id = ?",
-                (ticket_id, user["id"]),
-            ).fetchone()
-    return row_to_dict(row)
+        sql = """
+            SELECT ticket.*, user.username AS creator_username, user.is_deleted AS creator_is_deleted
+            FROM ticket LEFT JOIN user ON user.id = ticket.creator_id
+            WHERE ticket.id = ?
+        """
+        params: tuple[Any, ...] = (ticket_id,)
+        if not include_all:
+            sql += " AND ticket.creator_id = ?"
+            params = (ticket_id, user["id"])
+        row = conn.execute(sql, params).fetchone()
+    return _public_ticket(row) if row else None
+
+
+def _public_ticket(row: sqlite3.Row) -> dict[str, Any]:
+    """把工单联表结果转换为不含账户敏感字段的公开结构。
+
+    :param row: 工单与创建人联表查询结果。
+    :return: 返回可安全发送给前端的工单字典。
+    """
+    item = dict(row)
+    deleted = bool(item.pop("creator_is_deleted", 0))
+    username = str(item.get("creator_username") or "")
+    if deleted:
+        historical = username.rsplit("__deleted__", 1)[0] or "未知"
+        item["creator_username"] = f"账号已删除（原用户名：{historical}）"
+    elif not username:
+        item["creator_username"] = "账号已删除"
+    return item
 
 
 def update_ticket_status(ticket_id: int, status: str, user: dict[str, Any], include_all: bool = False) -> dict[str, Any] | None:
@@ -374,12 +559,239 @@ def ticket_stats() -> dict[str, Any]:
     return {"total": total, "by_status": {row["status"]: row["count"] for row in rows}}
 
 
+def bulk_approve_pending_consultations() -> dict[str, Any]:
+    """在一个事务内批准全部待审批普通咨询工单。
+
+    :return: 返回匹配数量、更新数量和已更新工单编号。
+    """
+    timestamp = now_iso()
+    with pool().transaction() as conn:
+        rows = conn.execute(
+            "SELECT id FROM ticket WHERE ticket_type = 'consultation' AND status = 'pending' ORDER BY id"
+        ).fetchall()
+        ticket_ids = [int(row["id"]) for row in rows]
+        if ticket_ids:
+            placeholders = ",".join("?" for _ in ticket_ids)
+            cursor = conn.execute(
+                f"UPDATE ticket SET status = 'approved', updated_at = ? "
+                f"WHERE ticket_type = 'consultation' AND status = 'pending' AND id IN ({placeholders})",
+                (timestamp, *ticket_ids),
+            )
+            updated_count = cursor.rowcount
+        else:
+            updated_count = 0
+    return {
+        "matched_count": len(ticket_ids),
+        "updated_count": updated_count,
+        "updated_ticket_ids": ticket_ids,
+    }
+
+
+def bulk_process_open_non_leave_tickets() -> dict[str, Any]:
+    """在一个事务内将全部待处理非请假工单更新为已处理。
+
+    :return: 返回匹配数量、更新数量和已更新工单编号。
+    """
+    timestamp = now_iso()
+    with pool().transaction() as conn:
+        rows = conn.execute(
+            "SELECT id FROM ticket WHERE ticket_type != 'leave' AND status = 'open' ORDER BY id"
+        ).fetchall()
+        ticket_ids = [int(row["id"]) for row in rows]
+        if ticket_ids:
+            placeholders = ",".join("?" for _ in ticket_ids)
+            cursor = conn.execute(
+                f"UPDATE ticket SET status = 'processed', updated_at = ? "
+                f"WHERE ticket_type != 'leave' AND status = 'open' AND id IN ({placeholders})",
+                (timestamp, *ticket_ids),
+            )
+            updated_count = cursor.rowcount
+        else:
+            updated_count = 0
+    return {
+        "matched_count": len(ticket_ids),
+        "updated_count": updated_count,
+        "updated_ticket_ids": ticket_ids,
+    }
+
+
+def create_conversation(
+    user_id: int, title: str = "新对话", request_id: str | None = None
+) -> dict[str, Any]:
+    """为指定用户创建会话。
+
+    :param user_id: 会话所属用户编号。
+    :param title: 会话标题。
+    :param request_id: 会话创建请求的幂等标识。
+    :return: 返回新建的会话记录。
+    """
+    timestamp = now_iso()
+    with pool().transaction() as conn:
+        if request_id is not None:
+            existing = conn.execute(
+                "SELECT * FROM conversation WHERE user_id = ? AND request_id = ?",
+                (user_id, request_id),
+            ).fetchone()
+            if existing:
+                return dict(existing)
+        user_row = conn.execute(
+            "SELECT next_conversation_sequence FROM user WHERE id = ? AND is_deleted = 0",
+            (user_id,),
+        ).fetchone()
+        if not user_row:
+            raise ValueError("user not found")
+        sequence_no = int(user_row["next_conversation_sequence"])
+        conn.execute(
+            "UPDATE user SET next_conversation_sequence = ? WHERE id = ?",
+            (sequence_no + 1, user_id),
+        )
+        stored_title = "新对话" if not title or title.startswith("新对话 ") else title
+        cursor = conn.execute(
+            """
+            INSERT INTO conversation (user_id, sequence_no, request_id, title, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, sequence_no, request_id, stored_title, timestamp, timestamp),
+        )
+        row = conn.execute("SELECT * FROM conversation WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return dict(row)
+
+
+def list_conversations(user: dict[str, Any]) -> list[dict[str, Any]]:
+    """按创建时间稳定列出当前用户自己的会话。
+
+    :param user: 当前登录用户。
+    :return: 返回当前用户的会话列表。
+    """
+    with pool().connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM conversation WHERE user_id = ? ORDER BY created_at ASC, id ASC",
+            (user["id"],),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_conversation(conversation_id: int, user: dict[str, Any]) -> dict[str, Any] | None:
+    """读取当前用户自己的指定会话，不提供管理员越权分支。
+
+    :param conversation_id: 会话编号。
+    :param user: 当前登录用户。
+    :return: 返回所属会话；不存在或不属于用户时返回空值。
+    """
+    with pool().connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM conversation WHERE id = ? AND user_id = ?",
+            (conversation_id, user["id"]),
+        ).fetchone()
+    return row_to_dict(row)
+
+
+def get_or_create_default_conversation(user_id: int) -> dict[str, Any]:
+    """获取兼容旧调用的默认会话，必要时创建。
+
+    :param user_id: 用户编号。
+    :return: 返回该用户最早的默认会话。
+    """
+    with pool().connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM conversation WHERE user_id = ? ORDER BY id ASC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+    return dict(row) if row else create_conversation(user_id)
+
+
+def update_conversation_title_from_question(conversation_id: int, user_id: int, question: str) -> None:
+    """用第一条问题自动命名仍为默认标题的会话。
+
+    :param conversation_id: 会话编号。
+    :param user_id: 会话所属用户编号。
+    :param question: 第一条用户问题。
+    :return: 无返回值；函数更新会话标题和时间。
+    """
+    title = question.strip()[:24] or "新对话"
+    with pool().transaction() as conn:
+        conn.execute(
+            """
+            UPDATE conversation
+            SET title = CASE
+                    WHEN title = '新对话' OR title = '新对话 ' || sequence_no THEN ?
+                    ELSE title
+                END,
+                updated_at = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (title, now_iso(), conversation_id, user_id),
+        )
+
+
+def delete_conversation(conversation_id: int, user: dict[str, Any]) -> dict[str, Any] | None:
+    """删除当前用户自己的会话及其聊天记录，不删除关联工单。
+
+    :param conversation_id: 待删除的会话编号。
+    :param user: 当前登录用户。
+    :return: 返回被删除的会话；不存在或不属于用户时返回空值。
+    """
+    with pool().transaction() as conn:
+        row = conn.execute(
+            "SELECT * FROM conversation WHERE id = ? AND user_id = ?",
+            (conversation_id, user["id"]),
+        ).fetchone()
+        if not row:
+            return None
+        deleted = dict(row)
+        conn.execute(
+            "DELETE FROM chat_history WHERE conversation_id = ? AND user_id = ?",
+            (conversation_id, user["id"]),
+        )
+        conn.execute(
+            "DELETE FROM conversation WHERE id = ? AND user_id = ?",
+            (conversation_id, user["id"]),
+        )
+        active = conn.execute(
+            "SELECT * FROM conversation WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
+            (user["id"],),
+        ).fetchone()
+        created_replacement = False
+        if active is None:
+            user_row = conn.execute(
+                "SELECT next_conversation_sequence FROM user WHERE id = ? AND is_deleted = 0",
+                (user["id"],),
+            ).fetchone()
+            if not user_row:
+                raise ValueError("user not found")
+            sequence_no = int(user_row["next_conversation_sequence"])
+            conn.execute(
+                "UPDATE user SET next_conversation_sequence = ? WHERE id = ?",
+                (sequence_no + 1, user["id"]),
+            )
+            timestamp = now_iso()
+            cursor = conn.execute(
+                """
+                INSERT INTO conversation (user_id, sequence_no, title, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user["id"], sequence_no, "新对话", timestamp, timestamp),
+            )
+            active = conn.execute(
+                "SELECT * FROM conversation WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
+            created_replacement = True
+    return {
+        "deleted": deleted,
+        "active_conversation": dict(active),
+        "created_replacement": created_replacement,
+    }
+
+
 def create_chat_history(
     user_id: int,
     question: str,
     answer: str,
     ticket_id: int | None = None,
     tool_events: str = "[]",
+    conversation_id: int | None = None,
+    request_id: str | None = None,
+    is_error: bool = False,
 ) -> dict[str, Any]:
     """创建处理对话历史记录。
 
@@ -388,59 +800,137 @@ def create_chat_history(
     :param answer: 函数处理所需的“`answer`”数据，类型为 ``str``。
     :param ticket_id: 函数处理所需的“工单`id`”数据，类型为 ``int | None``。
     :param tool_events: 函数处理所需的“工具`events`”数据，类型为 ``str``。
+    :param conversation_id: 消息所属的会话编号。
+    :param request_id: 本轮聊天请求的幂等标识。
+    :param is_error: 助手内容是否为失败提示。
     :return: 返回创建处理对话历史记录得到的结果，返回类型为 ``dict[str, Any]``。
     """
     created_at = now_iso()
+    if conversation_id is None:
+        conversation_id = int(get_or_create_default_conversation(user_id)["id"])
     with pool().transaction() as conn:
+        owned_conversation = conn.execute(
+            "SELECT 1 FROM conversation WHERE id = ? AND user_id = ?",
+            (conversation_id, user_id),
+        ).fetchone()
+        if not owned_conversation:
+            raise ValueError("conversation not found")
+        if request_id is not None:
+            existing = conn.execute(
+                """
+                SELECT * FROM chat_history
+                WHERE user_id = ? AND conversation_id = ? AND request_id = ?
+                """,
+                (user_id, conversation_id, request_id),
+            ).fetchone()
+            if existing:
+                return dict(existing)
         cursor = conn.execute(
             """
-            INSERT INTO chat_history (user_id, question, answer, ticket_id, tool_events, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO chat_history (
+                user_id, question, answer, ticket_id, tool_events, conversation_id, request_id, is_error, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, question, answer, ticket_id, tool_events, created_at),
+            (
+                user_id, question, answer, ticket_id, tool_events, conversation_id,
+                request_id, int(is_error), created_at,
+            ),
         )
         row = conn.execute("SELECT * FROM chat_history WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    update_conversation_title_from_question(conversation_id, user_id, question)
     return dict(row)
 
 
-def list_chat_history(user: dict[str, Any], limit: int = 50) -> list[dict[str, Any]]:
+def list_chat_history(
+    user: dict[str, Any], limit: int = 50, conversation_id: int | None = None,
+    before_id: int | None = None,
+) -> list[dict[str, Any]]:
     """查询列表处理对话历史记录。
 
     :param user: 函数处理所需的“用户”数据，类型为 ``dict[str, Any]``。
     :param limit: 函数处理所需的“`limit`”数据，类型为 ``int``。
+    :param conversation_id: 需要筛选的会话编号。
+    :param before_id: 只读取此记录编号之前的数据。
     :return: 返回查询列表处理对话历史记录得到的结果，返回类型为 ``list[dict[str, Any]]``。
     """
+    if conversation_id is None:
+        conversation_id = int(get_or_create_default_conversation(user["id"])["id"])
     with pool().connection() as conn:
+        before_sql = " AND id < ?" if before_id is not None else ""
+        params: tuple[Any, ...] = (user["id"], conversation_id)
+        if before_id is not None:
+            params += (before_id,)
+        params += (limit,)
         rows = conn.execute(
             """
-            SELECT id, question, answer, ticket_id, tool_events, created_at
+            SELECT id, conversation_id, request_id, question, answer, ticket_id, tool_events, is_error, created_at
             FROM chat_history
-            WHERE user_id = ?
+            WHERE user_id = ? AND conversation_id = ?
+            """ + before_sql + """
             ORDER BY id DESC
             LIMIT ?
             """,
-            (user["id"], limit),
+            params,
         ).fetchall()
     return [dict(row) for row in rows]
 
 
-def list_recent_chat_history(user: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
+def delete_chat_history(history_id: int, user: dict[str, Any]) -> dict[str, Any] | None:
+    """删除当前用户指定的一整轮问答，并保留会话和关联工单。
+
+    :param history_id: 待删除的聊天记录编号。
+    :param user: 当前登录用户。
+    :return: 返回已删除记录；记录不存在或不属于当前用户时返回空值。
+    """
+    with pool().transaction() as conn:
+        row = conn.execute(
+            """
+            SELECT chat_history.* FROM chat_history
+            JOIN conversation ON conversation.id = chat_history.conversation_id
+            WHERE chat_history.id = ? AND chat_history.user_id = ?
+              AND conversation.user_id = ? AND conversation.id = chat_history.conversation_id
+            """,
+            (history_id, user["id"], user["id"]),
+        ).fetchone()
+        if not row:
+            return None
+        deleted = dict(row)
+        conn.execute("DELETE FROM chat_history WHERE id = ?", (history_id,))
+        remaining = conn.execute(
+            "SELECT 1 FROM chat_history WHERE conversation_id = ? LIMIT 1",
+            (row["conversation_id"],),
+        ).fetchone()
+        if remaining is None:
+            conn.execute(
+                "UPDATE conversation SET title = '新对话', updated_at = ? WHERE id = ? AND user_id = ?",
+                (now_iso(), row["conversation_id"], user["id"]),
+            )
+    return deleted
+
+
+def list_recent_chat_history(
+    user: dict[str, Any], limit: int = 5, conversation_id: int | None = None
+) -> list[dict[str, Any]]:
     """查询列表`recent`处理对话历史记录。
 
     :param user: 函数处理所需的“用户”数据，类型为 ``dict[str, Any]``。
     :param limit: 函数处理所需的“`limit`”数据，类型为 ``int``。
+    :param conversation_id: 需要筛选的会话编号。
     :return: 返回查询列表`recent`处理对话历史记录得到的结果，返回类型为 ``list[dict[str, Any]]``。
     """
+    if conversation_id is None:
+        conversation_id = int(get_or_create_default_conversation(user["id"])["id"])
     with pool().connection() as conn:
         rows = conn.execute(
             """
-            SELECT id, question, answer, ticket_id, tool_events, created_at
+            SELECT id, conversation_id, request_id, question, answer, ticket_id, tool_events, is_error, created_at
             FROM chat_history
-            WHERE user_id = ?
+            WHERE user_id = ? AND conversation_id = ?
             ORDER BY id DESC
             LIMIT ?
             """,
-            (user["id"], limit),
+            (user["id"], conversation_id, limit),
         ).fetchall()
     return [dict(row) for row in reversed(rows)]
 

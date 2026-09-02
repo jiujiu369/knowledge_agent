@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -66,6 +67,39 @@ class CreateConsultTicketInput(BaseModel):
         :return: 返回文本`valid`得到的结果，返回类型为 ``str``。
         """
         return validate_user_text(value)
+
+
+class LeaveApplicationInput(BaseModel):
+    leave_type: Literal["年假", "事假", "病假", "调休", "婚假", "产假/陪产假", "其他"]
+    start_at: datetime
+    end_at: datetime
+    leave_days: float = Field(gt=0)
+    reason: str
+    request_id: str = Field(min_length=1, max_length=64)
+
+    @field_validator("reason")
+    @classmethod
+    def reason_valid(cls, value: str) -> str:
+        """校验请假原因。
+
+        :param value: 用户填写的请假原因。
+        :return: 返回清理后的非空原因。
+        """
+        return validate_user_text(value)
+
+    @field_validator("end_at")
+    @classmethod
+    def end_not_before_start(cls, value: datetime, info):
+        """校验结束时间不得早于开始时间。
+
+        :param value: 请假结束时间。
+        :param info: Pydantic 已校验字段信息。
+        :return: 返回校验通过的结束时间。
+        """
+        start_at = info.data.get("start_at")
+        if start_at is not None and value < start_at:
+            raise ValueError("end_at cannot be earlier than start_at")
+        return value
 
 
 class QueryTicketListInput(BaseModel):
