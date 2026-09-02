@@ -13,61 +13,110 @@
 - 云端 LLM 客户端默认忽略系统代理环境变量，避免本机代理异常导致 Ark/Agnes HTTPS 连接失败。
 - API key 只走环境变量：复制 `.env.example` 为 `.env` 后填写 `AGNES_API_KEY` 或 `ARK_API_KEY`，代码和文档不写真实 key。
 
-## 当前可用状态
+## 运行模式与交付边界
 
-- 后端 API：`/health` 可正常返回 `{"status":"ok"}`。
-- 云端 LLM：`.env` 配置的 Ark/Agnes OpenAI 兼容接口可用；客户端已禁用系统代理继承。
-- 本地 VLM：`models/qwen2.5-vl/` 权重、`bitsandbytes`、4-bit 加载链路已打通，可用于插图语义增强。
-- 本地 RAG：BGE Embedding、Chroma、PaddleOCR、reranker 均按本地链路运行。
+本仓库支持同一代码库的两种运行方式：**本地全量模式**用于 Windows 演示与完整 RAG 能力；**ECS 轻量模式**用于 Linux 常驻服务。模型、密钥和业务数据不随 Git 提供：克隆仓库后仍需由部署者准备模型权重、`.env` 中的 LLM 密钥，以及自己的 `datas/` 业务数据和数据库备份，不能将“可克隆”视为“已可全量运行”。
 
-## 环境
+### 本地全量模式
+
+适用场景：Windows 本地演示，需要 Embedding、reranker、OCR 与 VLM 插图增强的完整链路。
+
+项目根目录需要由部署者自行放置以下本地模型（均被 Git 忽略）：
+
+```text
+models/
+├── bge-base-zh-v1.5/
+├── bge-reranker-base/
+└── qwen2.5-vl/
+```
+
+环境：
 
 - 项目路径：`F:\code\knowledge_agent`
 - Python：`F:\code\knowledge_agent\.venv\Scripts\python.exe`
 - 固定版本：Python 3.12.9
-- 本项目以本地运行为主，不部署云端。
 
-检查版本：
+首次配置时复制模板，并在本机 `.env` 填入有效的 `AGNES_API_KEY` 或 `ARK_API_KEY`；不要把该文件、模型目录或 `datas/` 提交到 Git。
 
 ```powershell
+Copy-Item .env.example .env
 F:\code\knowledge_agent\.venv\Scripts\python.exe --version
 ```
 
-## 本地启动
-
-启动后端：
+本地全量模式使用 `.env.example` 中的 `VLM_ENABLED=true` 和 `RERANKER_ENABLED=true`，并要求上述三个模型目录完整可读。启动后端与前端：
 
 ```powershell
 F:\code\knowledge_agent\.venv\Scripts\python.exe -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000
-```
-
-启动前端：
-
-```powershell
 F:\code\knowledge_agent\.venv\Scripts\python.exe -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false
 ```
 
-本地启动器：
+也可使用本地启动器：
 
 ```powershell
 F:\code\knowledge_agent\.venv\Scripts\python.exe web/local_launcher.py
 ```
 
-访问地址：
+访问地址：后端健康检查 `http://127.0.0.1:8000/health`，Swagger `http://127.0.0.1:8000/docs`，前端 `http://localhost:8501`。
 
-- 后端健康检查：`http://127.0.0.1:8000/health`
-- 后端 Swagger：`http://127.0.0.1:8000/docs`
-- 前端页面：`http://localhost:8501`
+### ECS 轻量模式
 
-## 首次演示账号
+适用场景：Linux ECS 常驻运行。该模式只保留本地 BGE 检索和 Chroma；关闭 VLM、reranker 和其重型依赖，不应把本地全量模型目录直接作为 ECS 前置条件。
 
-系统不内置固定管理员账号。首次演示时先注册管理员：
+1. **先**创建 systemd 运行身份，再将代码放入 `/opt/knowledge_agent` 并创建持久化目录。以下命令必须在服务启动前执行，避免 systemd 的非 root 进程无法读写 `.env`、SQLite、Chroma 或模型：
 
-```powershell
-curl -X POST http://127.0.0.1:8000/api/auth/register -H "Content-Type: application/json" -d "{\"username\":\"admin_demo\",\"password\":\"Passw0rd!\",\"role\":\"admin\"}"
+```bash
+sudo useradd --system --create-home --user-group --shell /usr/sbin/nologin knowledge-agent
+sudo git clone <你的仓库地址> /opt/knowledge_agent
+sudo install -d -o knowledge-agent -g knowledge-agent /opt/knowledge_agent/datas /opt/knowledge_agent/models
+sudo cp /opt/knowledge_agent/deploy/knowledge-agent.env.example /opt/knowledge_agent/.env
+sudo chown -R knowledge-agent:knowledge-agent /opt/knowledge_agent /opt/knowledge_agent/.env /opt/knowledge_agent/datas /opt/knowledge_agent/models
+sudo chmod 600 /opt/knowledge_agent/.env
 ```
 
-然后在前端使用 `admin_demo / Passw0rd!` 登录。管理员可以创建普通用户，默认密码为 `123456`。
+2. 以受控方式将 BGE 权重放入 `/opt/knowledge_agent/models/bge-base-zh-v1.5/`，将业务文档、SQLite 与 Chroma 数据放在 `/opt/knowledge_agent/datas/`。编辑 `/opt/knowledge_agent/.env` 填入实际 LLM 密钥；模板中的轻量关键值必须保持：
+
+```dotenv
+VLM_ENABLED=false
+RERANKER_ENABLED=false
+DATAS_DIR=/opt/knowledge_agent/datas
+APP_DB_PATH=/opt/knowledge_agent/datas/app.db
+CHROMA_DIR=/opt/knowledge_agent/datas/chroma
+BGE_MODEL_PATH=/opt/knowledge_agent/models/bge-base-zh-v1.5
+KNOWLEDGE_AGENT_API_BASE_URL=http://127.0.0.1:8000
+```
+
+3. 安装轻量依赖并安装 systemd 单元。`knowledge-agent-api` 仅监听 `127.0.0.1:8000`，`knowledge-agent-web` 对外提供 `8501`；生产环境仍应按自己的网络策略限制访问该端口。
+
+```bash
+sudo -u knowledge-agent python3 -m venv /opt/knowledge_agent/.venv
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/pip install -r /opt/knowledge_agent/requirements-cloud.txt
+sudo cp /opt/knowledge_agent/deploy/systemd/knowledge-agent-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now knowledge-agent-api knowledge-agent-web
+sudo systemctl status knowledge-agent-api knowledge-agent-web --no-pager
+```
+
+4. 验证服务。失败时先检查日志，不要通过修改 Git 中的密钥或数据排障：
+
+```bash
+curl --fail http://127.0.0.1:8000/health
+curl --fail http://127.0.0.1:8501/
+sudo journalctl -u knowledge-agent-api -u knowledge-agent-web -n 100 --no-pager
+```
+
+### 管理员与 Web 冒烟
+
+公网 `POST /api/auth/register` 只会创建 `employee`；不要再通过公网注册接口创建管理员。管理员必须在受信任的初始化或运维流程中预创建，且用户名、密码不得写入 Git、文档或命令历史。
+
+Web 冒烟测试只登录这个预创建管理员。运行前在受限的部署环境中提供以下环境变量，再执行测试：
+
+```bash
+export KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME='<预创建管理员用户名>'
+export KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD='<预创建管理员密码>'
+sudo -u knowledge-agent -E /opt/knowledge_agent/.venv/bin/python /opt/knowledge_agent/web/smoke_test.py
+```
+
+缺少任一变量时 `web/smoke_test.py` 会停止，不会注册或提升管理员账号。
 
 ## 核心流程
 

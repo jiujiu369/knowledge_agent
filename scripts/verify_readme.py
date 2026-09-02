@@ -37,6 +37,14 @@ REQUIRED_PHRASES = [
     "API key 只走环境变量",
     "主要函数介绍",
     "F:\\code\\knowledge_agent\\.venv\\Scripts\\python.exe",
+    "本地全量模式",
+    "ECS 轻量模式",
+    "bge-base-zh-v1.5",
+    "bge-reranker-base",
+    "qwen2.5-vl",
+    "VLM_ENABLED=false",
+    "RERANKER_ENABLED=false",
+    "模型、密钥和业务数据不随 Git 提供",
 ]
 
 REQUIRED_COMMAND_FRAGMENTS = [
@@ -46,6 +54,8 @@ REQUIRED_COMMAND_FRAGMENTS = [
     "run_harness.py --stress-duration 10s",
     "-m loop_optimizer.run_loop",
     "scripts\\verify_readme.py",
+    "systemctl",
+    "8501",
 ]
 
 
