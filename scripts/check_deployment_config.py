@@ -1,11 +1,52 @@
 from __future__ import annotations
 
+import ast
+import re
 import sys
 from pathlib import Path
-import re
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+LOCAL_IMPORTS = {"agent_server", "common", "loop_optimizer", "scripts", "web"}
+IMPORT_DISTRIBUTIONS = {
+    "PIL": "pillow",
+    "docx": "python-docx",
+    "dotenv": "python-dotenv",
+    "fitz": "pymupdf",
+    "rank_bm25": "rank-bm25",
+    "sentence_transformers": "sentence-transformers",
+}
+FULL_MODE_REQUIRED = {
+    "accelerate",
+    "bitsandbytes",
+    "paddlepaddle",
+    "python-multipart",
+    "torch",
+    "torchvision",
+    "uvicorn",
+}
+CLOUD_REQUIRED = {
+    "chromadb",
+    "fastapi",
+    "httpx",
+    "jieba",
+    "langchain",
+    "langgraph",
+    "numpy",
+    "openai",
+    "pdfplumber",
+    "pymupdf",
+    "pydantic",
+    "python-docx",
+    "python-dotenv",
+    "python-multipart",
+    "rank-bm25",
+    "requests",
+    "sentence-transformers",
+    "streamlit",
+    "uvicorn",
+}
+CLOUD_EXCLUDED = {"auto-gptq", "bitsandbytes", "llama-cpp", "paddleocr", "paddlepaddle"}
 
 
 def read_text(path: Path, project_root: Path, errors: list[str]) -> str:
@@ -124,10 +165,35 @@ def requirement_names(text: str) -> set[str]:
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        name = re.split(r"[<>=!~\[\s]", line, maxsplit=1)[0].lower()
+        name = re.split(r"[<>=!~\[\s]", line, maxsplit=1)[0]
         if name:
-            names.add(name)
+            names.add(re.sub(r"[-_.]+", "-", name).lower())
     return names
+
+
+def runtime_requirement_names(project_root: Path) -> set[str]:
+    """扫描运行时代码并返回其直接导入对应的分发包名。
+
+    :param project_root: 需要扫描的项目根目录。
+    :return: 返回排除标准库和仓库内模块后的规范化分发包名集合。
+    """
+    imported: set[str] = set()
+    for relative_root in ("agent_server", "common", "loop_optimizer", "scripts", "web"):
+        source_root = project_root / relative_root
+        if not source_root.is_dir():
+            continue
+        for path in source_root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.update(alias.name.split(".", maxsplit=1)[0] for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.add(node.module.split(".", maxsplit=1)[0])
+    external = imported - set(sys.stdlib_module_names) - LOCAL_IMPORTS - {"__future__"}
+    return {
+        re.sub(r"[-_.]+", "-", IMPORT_DISTRIBUTIONS.get(name, name)).lower()
+        for name in external
+    }
 
 
 def validate(project_root: Path = PROJECT_ROOT) -> list[str]:
@@ -142,6 +208,7 @@ def validate(project_root: Path = PROJECT_ROOT) -> list[str]:
     api_text = read_text(deploy_root / "systemd" / "knowledge-agent-api.service", project_root, errors)
     web_text = read_text(deploy_root / "systemd" / "knowledge-agent-web.service", project_root, errors)
     requirements_text = read_text(project_root / "requirements-cloud.txt", project_root, errors)
+    full_requirements_text = read_text(project_root / "requirements.txt", project_root, errors)
     env_values = parse_dotenv(env_text, errors)
     if env_values.get("AGNES_API_KEY") != "":
         errors.append("environment template: AGNES_API_KEY must be empty")
@@ -152,13 +219,21 @@ def validate(project_root: Path = PROJECT_ROOT) -> list[str]:
         ("APP_DB_PATH", "/opt/knowledge_agent/datas/app.db"),
         ("CHROMA_DIR", "/opt/knowledge_agent/datas/chroma"),
         ("BGE_MODEL_PATH", "/opt/knowledge_agent/models/bge-base-zh-v1.5"),
+        ("QA_LOG_PATH", "/opt/knowledge_agent/datas/logs/qa_events.jsonl"),
         ("KNOWLEDGE_AGENT_API_BASE_URL", "http://127.0.0.1:8000"),
     ):
         require_value(env_values, key, expected, "environment template", errors)
 
-    excluded_dependencies = {"paddlepaddle", "paddleocr", "bitsandbytes", "auto-gptq", "llama-cpp"}
-    for dependency in sorted(excluded_dependencies.intersection(requirement_names(requirements_text))):
+    cloud_names = requirement_names(requirements_text)
+    for dependency in sorted(CLOUD_REQUIRED - cloud_names):
+        errors.append(f"requirements-cloud.txt missing required dependency: {dependency}")
+    for dependency in sorted(CLOUD_EXCLUDED.intersection(cloud_names)):
         errors.append(f"requirements-cloud.txt contains excluded dependency: {dependency}")
+
+    full_names = requirement_names(full_requirements_text)
+    full_required = runtime_requirement_names(project_root) | FULL_MODE_REQUIRED
+    for dependency in sorted(full_required - full_names):
+        errors.append(f"requirements.txt missing required dependency: {dependency}")
 
     api_command = (
         "ExecStart=/opt/knowledge_agent/.venv/bin/python -m uvicorn "
@@ -180,6 +255,7 @@ def validate(project_root: Path = PROJECT_ROOT) -> list[str]:
             ("EnvironmentFile", "/opt/knowledge_agent/.env"),
             ("User", "knowledge-agent"),
             ("Group", "knowledge-agent"),
+            ("UMask", "0027"),
             ("Restart", "on-failure"),
             ("RestartSec", "5"),
             ("ExecStart", command.removeprefix("ExecStart=")),

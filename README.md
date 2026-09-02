@@ -60,18 +60,34 @@ Copy-Item .env.example .env
 
 适用场景：Linux ECS 常驻运行。该模式只保留本地 BGE 检索和 Chroma；关闭 VLM、reranker 和其重型依赖，不应把本地全量模型目录直接作为 ECS 前置条件。
 
-1. **先**创建 systemd 运行身份，再将代码放入 `/opt/knowledge_agent` 并创建持久化目录。以下命令必须在服务启动前执行，避免 systemd 的非 root 进程无法读写 `.env`、SQLite、Chroma 或模型：
+1. Ubuntu 22.04 自带的 `python3` 是 Python 3.10，不能用它创建本项目环境。先显式安装并确认 Python 3.12：
 
 ```bash
-sudo useradd --system --create-home --user-group --shell /usr/sbin/nologin knowledge-agent
-sudo git clone <你的仓库地址> /opt/knowledge_agent
-sudo install -d -o knowledge-agent -g knowledge-agent /opt/knowledge_agent/datas /opt/knowledge_agent/models
-sudo cp /opt/knowledge_agent/deploy/knowledge-agent.env.example /opt/knowledge_agent/.env
-sudo chown -R knowledge-agent:knowledge-agent /opt/knowledge_agent /opt/knowledge_agent/.env /opt/knowledge_agent/datas /opt/knowledge_agent/models
-sudo chmod 600 /opt/knowledge_agent/.env
+sudo apt-get update
+sudo apt-get install -y software-properties-common git
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+sudo apt-get update
+sudo apt-get install -y python3.12 python3.12-venv
+python3.12 --version
 ```
 
-2. 以受控方式将 BGE 权重放入 `/opt/knowledge_agent/models/bge-base-zh-v1.5/`，将业务文档、SQLite 与 Chroma 数据放在 `/opt/knowledge_agent/datas/`。编辑 `/opt/knowledge_agent/.env` 填入实际 LLM 密钥；模板中的轻量关键值必须保持：
+2. **先**创建与 systemd 一致的运行身份，再克隆代码和分配最小权限。代码、虚拟环境、模型和 `.env` 由 root 管理；服务账户只写 `datas/`，只读模型和密钥。全新安装执行：
+
+```bash
+export KNOWLEDGE_AGENT_REPO_URL='<你的仓库 HTTPS 地址>'
+sudo useradd --system --user-group --home-dir /opt/knowledge_agent --no-create-home --shell /usr/sbin/nologin knowledge-agent
+sudo git clone "$KNOWLEDGE_AGENT_REPO_URL" /opt/knowledge_agent
+cd /opt/knowledge_agent
+sudo chown -R root:knowledge-agent /opt/knowledge_agent
+sudo chmod -R u=rwX,g=rX,o= /opt/knowledge_agent
+sudo install -d -o knowledge-agent -g knowledge-agent -m 750 /opt/knowledge_agent/datas /opt/knowledge_agent/datas/chroma /opt/knowledge_agent/datas/logs
+sudo install -d -o root -g knowledge-agent -m 750 /opt/knowledge_agent/models /opt/knowledge_agent/models/bge-base-zh-v1.5
+sudo install -o root -g knowledge-agent -m 640 /opt/knowledge_agent/deploy/knowledge-agent.env.example /opt/knowledge_agent/.env
+```
+
+若用户或目录已存在，先用 `id knowledge-agent`、`git -C /opt/knowledge_agent status` 检查，不要重复 `useradd`、覆盖目录或删除既有 `.env`/数据。
+
+3. 以受控方式将 BGE 权重放入 `/opt/knowledge_agent/models/bge-base-zh-v1.5/`，将业务文档、SQLite 与 Chroma 数据放在 `/opt/knowledge_agent/datas/`。用 `sudoedit /opt/knowledge_agent/.env` 填入实际 LLM 密钥；不要把密钥放入命令参数、`export`、聊天或日志。模板中的轻量关键值必须保持：
 
 ```dotenv
 VLM_ENABLED=false
@@ -80,27 +96,82 @@ DATAS_DIR=/opt/knowledge_agent/datas
 APP_DB_PATH=/opt/knowledge_agent/datas/app.db
 CHROMA_DIR=/opt/knowledge_agent/datas/chroma
 BGE_MODEL_PATH=/opt/knowledge_agent/models/bge-base-zh-v1.5
+QA_LOG_PATH=/opt/knowledge_agent/datas/logs/qa_events.jsonl
 KNOWLEDGE_AGENT_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-3. 安装轻量依赖并安装 systemd 单元。`knowledge-agent-api` 仅监听 `127.0.0.1:8000`，`knowledge-agent-web` 对外提供 `8501`；生产环境仍应按自己的网络策略限制访问该端口。
+上传完成后收紧模型权限并硬检查服务账户权限；`.env` 必须保持 `root:knowledge-agent 640`，服务账户可读但不可写：
 
 ```bash
-sudo -u knowledge-agent python3 -m venv /opt/knowledge_agent/.venv
-sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/pip install -r /opt/knowledge_agent/requirements-cloud.txt
+sudo chown -R root:knowledge-agent /opt/knowledge_agent/models
+sudo find /opt/knowledge_agent/models -type d -exec chmod 750 {} +
+sudo find /opt/knowledge_agent/models -type f -exec chmod 640 {} +
+sudo chown -R knowledge-agent:knowledge-agent /opt/knowledge_agent/datas
+sudo chmod -R u=rwX,g=rX,o= /opt/knowledge_agent/datas
+test "$(stat -c '%U:%G %a' /opt/knowledge_agent/.env)" = 'root:knowledge-agent 640'
+sudo -u knowledge-agent test -r /opt/knowledge_agent/.env
+sudo -u knowledge-agent test ! -w /opt/knowledge_agent/.env
+sudo -u knowledge-agent test -w /opt/knowledge_agent/datas
+sudo -u knowledge-agent test -r /opt/knowledge_agent/models/bge-base-zh-v1.5
+```
+
+4. 用 Python 3.12 创建全新的 Linux 虚拟环境，安装未削弱的轻量依赖，并在启动前做依赖和导入验收。若 `.venv` 已存在，停止并查明来源，不要在未知环境上覆盖安装：
+
+```bash
+test ! -e /opt/knowledge_agent/.venv
+sudo python3.12 -m venv /opt/knowledge_agent/.venv
+sudo /opt/knowledge_agent/.venv/bin/python -m pip install --upgrade pip
+sudo /opt/knowledge_agent/.venv/bin/python -m pip install -r /opt/knowledge_agent/requirements-cloud.txt
+/opt/knowledge_agent/.venv/bin/python -m pip check
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python -c "import agent_server.main; import web.app; print('API_WEB_IMPORT_OK')"
+```
+
+5. 在启动公网服务前创建首个管理员。该命令不接受任何参数，也不从环境变量读取管理员密码；它要求交互式 TTY，并通过 `getpass` 两次无回显读取密码，再调用服务端认证逻辑创建 `admin`：
+
+```bash
+cd /opt/knowledge_agent
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python /opt/knowledge_agent/scripts/bootstrap_admin.py
+```
+
+6. 安装 systemd 单元。`knowledge-agent-api` 仅监听 `127.0.0.1:8000`，`knowledge-agent-web` 对外提供 `8501`；生产环境仍应按自己的网络策略限制访问该端口：
+
+```bash
 sudo cp /opt/knowledge_agent/deploy/systemd/knowledge-agent-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now knowledge-agent-api knowledge-agent-web
 sudo systemctl status knowledge-agent-api knowledge-agent-web --no-pager
 ```
 
-4. 验证服务。失败时先检查日志，不要通过修改 Git 中的密钥或数据排障：
+7. 用真实健康端点、自动重启计数、cgroup 内存与内核 OOM 日志做硬验收。两个新服务合计 `MemoryCurrent` 必须低于 3 GiB，`MemAvailable` 不低于 256 MiB，且 `NRestarts=0`：
 
 ```bash
-curl --fail http://127.0.0.1:8000/health
-curl --fail http://127.0.0.1:8501/
+set -euo pipefail
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
+sudo systemctl is-active knowledge-agent-api knowledge-agent-web
+sudo systemctl show knowledge-agent-api knowledge-agent-web -p NRestarts -p MemoryCurrent --no-pager
+test "$(sudo systemctl show knowledge-agent-api -p NRestarts --value)" -eq 0
+test "$(sudo systemctl show knowledge-agent-web -p NRestarts --value)" -eq 0
+API_MEMORY_BYTES=$(sudo systemctl show knowledge-agent-api -p MemoryCurrent --value)
+WEB_MEMORY_BYTES=$(sudo systemctl show knowledge-agent-web -p MemoryCurrent --value)
+test "$((API_MEMORY_BYTES + WEB_MEMORY_BYTES))" -lt $((3 * 1024 * 1024 * 1024))
+MEM_AVAILABLE_KIB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+test "$MEM_AVAILABLE_KIB" -ge $((256 * 1024))
+KERNEL_LOG=$(sudo journalctl -k --since '-15 minutes' --no-pager)
+if grep -Ei 'oom-kill|out of memory|killed process' <<<"$KERNEL_LOG" >/dev/null; then
+  echo 'FAIL: kernel OOM evidence detected during deployment acceptance' >&2
+  exit 1
+fi
+for PORT in 7860 8000 8501; do
+  test -n "$(ss -lntH "sport = :$PORT")" || {
+    echo "FAIL: port $PORT is not listening" >&2
+    exit 1
+  }
+done
 sudo journalctl -u knowledge-agent-api -u knowledge-agent-web -n 100 --no-pager
 ```
+
+最后执行一次受控重启并重复两条 `curl`、`is-active`、`NRestarts`、`MemoryCurrent` 与 OOM 检查；若任一硬条件失败，只停止这两个新服务，不触碰旧项目或 `7860`。
 
 ### 管理员与 Web 冒烟
 
@@ -291,7 +362,7 @@ README 校验：
 
 ## 当前量化结果
 
-- pytest 全量 harness：`52 passed, 1 skipped`
+- pytest 全量 harness：以当前 checkout 执行“自检命令”中的全量命令为准；最近一次发布前证据记录在对应验收报告中，README 不固化易过期的用例数。
 - M4 50 并发：QPS `73.811`，P95 `1000 ms`，失败率 `0.0%`
 - M4 100 并发：QPS `74.8723`，P95 `2000 ms`，失败率 `0.0%`
 - M5 Loop：`bad_sample.csv`、`optimize_report.md`、`prompt_diff.md` 已生成，脚本不自动修改线上 Prompt。

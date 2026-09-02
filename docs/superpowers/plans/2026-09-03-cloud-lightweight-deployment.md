@@ -197,6 +197,7 @@ DATAS_DIR=/opt/knowledge_agent/datas
 APP_DB_PATH=/opt/knowledge_agent/datas/app.db
 CHROMA_DIR=/opt/knowledge_agent/datas/chroma
 BGE_MODEL_PATH=/opt/knowledge_agent/models/bge-base-zh-v1.5
+QA_LOG_PATH=/opt/knowledge_agent/datas/logs/qa_events.jsonl
 KNOWLEDGE_AGENT_API_BASE_URL=http://127.0.0.1:8000
 LOG_LEVEL=INFO
 ```
@@ -205,7 +206,7 @@ LOG_LEVEL=INFO
 
 - [ ] **Step 4: 创建 systemd 服务**
 
-API unit 使用 `/opt/knowledge_agent/.venv/bin/python -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000`；Web unit 使用 `/opt/knowledge_agent/.venv/bin/python -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false`。两者设置 `Restart=on-failure`、`RestartSec=5`，Web 设置 `After=knowledge-agent-api.service`。
+API unit 使用 `/opt/knowledge_agent/.venv/bin/python -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000`；Web unit 使用 `/opt/knowledge_agent/.venv/bin/python -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false`。两者使用 `User=knowledge-agent`、`Group=knowledge-agent`、`UMask=0027`、`Restart=on-failure`、`RestartSec=5`，Web 设置 `After=knowledge-agent-api.service`。
 
 - [ ] **Step 5: 创建静态部署检查器**
 
@@ -316,6 +317,7 @@ git push origin master
 
 **Files:**
 - Deploy from: GitHub `master`
+- Bootstrap command: `scripts/bootstrap_admin.py`
 - Server-only secrets: `/opt/knowledge_agent/.env`
 - Server-only data: `/opt/knowledge_agent/datas/`
 - Server-only models: `/opt/knowledge_agent/models/`
@@ -326,10 +328,18 @@ git push origin master
 
 - [ ] **Step 1: 只读预检旧项目和服务器资源**
 
-Run:
+先在本地终端设置非敏感连接变量，真实地址不写入版本库：
 
 ```bash
-ssh root@8.154.20.121
+export KNOWLEDGE_AGENT_ECS_SSH_TARGET='root@<ECS 公网 IP>'
+export KNOWLEDGE_AGENT_PUBLIC_HOST='<ECS 公网 IP>'
+ssh "$KNOWLEDGE_AGENT_ECS_SSH_TARGET"
+```
+
+登录服务器后执行：
+
+```bash
+set -euo pipefail
 free -h
 df -h /
 ss -lntp
@@ -342,6 +352,13 @@ ps -ef | grep -E 'python|streamlit|uvicorn' | grep -v grep
 - [ ] **Step 2: 创建并验证 4 GiB Swap**
 
 ```bash
+swapon --show
+ls -lh /swapfile 2>/dev/null || true
+```
+
+仅当 `/swapfile` 不存在且没有等量 Swap 时执行：
+
+```bash
 fallocate -l 4G /swapfile
 chmod 600 /swapfile
 mkswap /swapfile
@@ -350,20 +367,9 @@ grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fs
 free -h
 ```
 
-如果 `/swapfile` 已存在，先用 `swapon --show` 和 `ls -lh /swapfile` 验证，不覆盖现有 Swap。
+若 `/swapfile` 已存在但未启用，先查明用途；不得覆盖未知 Swap 文件。
 
-- [ ] **Step 3: 克隆新项目且不触碰旧目录**
-
-```bash
-git clone https://github.com/jiujiu369/knowledge_agent.git /opt/knowledge_agent
-cd /opt/knowledge_agent
-git rev-parse --short HEAD
-python3 --version
-```
-
-若目录已存在则先检查 `git status`、当前提交及 `.env`/数据备份，不执行覆盖式删除。
-
-- [ ] **Step 4: 创建虚拟环境并安装轻量运行依赖**
+- [ ] **Step 3: 安装 Python 3.12 并创建服务身份**
 
 ```bash
 apt-get update
@@ -371,57 +377,121 @@ apt-get install -y software-properties-common git
 add-apt-repository -y ppa:deadsnakes/ppa
 apt-get update
 apt-get install -y python3.12 python3.12-venv
+python3.12 --version
+useradd --system --user-group --home-dir /opt/knowledge_agent --no-create-home --shell /usr/sbin/nologin knowledge-agent
+id knowledge-agent
+```
+
+Ubuntu 22.04 默认 `python3` 为 3.10，不得用于本项目。若账户已存在，跳过 `useradd`，但必须用 `id knowledge-agent` 确认 UID/GID；systemd 的 `User`/`Group` 必须都为 `knowledge-agent`。
+
+- [ ] **Step 4: 克隆项目并设置最小权限**
+
+```bash
+export KNOWLEDGE_AGENT_REPO_URL='https://github.com/jiujiu369/knowledge_agent.git'
+git clone "$KNOWLEDGE_AGENT_REPO_URL" /opt/knowledge_agent
+cd /opt/knowledge_agent
+git rev-parse --short HEAD
+chown -R root:knowledge-agent /opt/knowledge_agent
+chmod -R u=rwX,g=rX,o= /opt/knowledge_agent
+install -d -o knowledge-agent -g knowledge-agent -m 750 /opt/knowledge_agent/datas /opt/knowledge_agent/datas/chroma /opt/knowledge_agent/datas/logs
+install -d -o root -g knowledge-agent -m 750 /opt/knowledge_agent/models /opt/knowledge_agent/models/bge-base-zh-v1.5
+```
+
+若目录已存在则先检查 `git status`、当前提交及 `.env`/数据备份，不执行覆盖式删除，也不重跑全新安装命令。
+
+- [ ] **Step 5: 创建干净 Python 3.12 环境并验证依赖**
+
+```bash
+test ! -e /opt/knowledge_agent/.venv
 python3.12 -m venv /opt/knowledge_agent/.venv
 /opt/knowledge_agent/.venv/bin/python -m pip install --upgrade pip
 /opt/knowledge_agent/.venv/bin/python -m pip install -r /opt/knowledge_agent/requirements-cloud.txt
+/opt/knowledge_agent/.venv/bin/python -m pip check
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python -c "import agent_server.main; import web.app; print('API_WEB_IMPORT_OK')"
 ```
 
-安装过程中持续观察 `free -h` 和 `df -h /`；不得卸载旧项目依赖或复用旧项目虚拟环境。
+必须看到 Python 3.12、`pip check` 无冲突和 `API_WEB_IMPORT_OK`。安装过程中持续观察 `free -h` 与 `df -h /`；不得复用或修改旧项目虚拟环境。
 
-- [ ] **Step 5: 配置密钥、目录和基础 BGE 模型**
+- [ ] **Step 6: 配置密钥、数据、模型并一次性创建管理员**
 
 ```bash
-install -m 600 /opt/knowledge_agent/deploy/knowledge-agent.env.example /opt/knowledge_agent/.env
-mkdir -p /opt/knowledge_agent/datas/chroma /opt/knowledge_agent/models/bge-base-zh-v1.5
+install -o root -g knowledge-agent -m 640 /opt/knowledge_agent/deploy/knowledge-agent.env.example /opt/knowledge_agent/.env
+sudoedit /opt/knowledge_agent/.env
 ```
 
-在服务器终端中编辑 `/opt/knowledge_agent/.env` 写入真实 API key；不在聊天、Git、shell history 或日志中打印 key。通过安全文件传输将 BGE 模型放入指定目录，保留 VLM 和 reranker 为关闭状态。
+只在 `sudoedit` 中写入真实 LLM API key；不通过命令参数、环境变量、聊天、shell history 或日志传递密钥和管理员密码。安全传输 BGE 权重后执行：
 
-- [ ] **Step 6: 安装并启动 systemd 服务**
+```bash
+chown -R root:knowledge-agent /opt/knowledge_agent/models
+find /opt/knowledge_agent/models -type d -exec chmod 750 {} +
+find /opt/knowledge_agent/models -type f -exec chmod 640 {} +
+chown -R knowledge-agent:knowledge-agent /opt/knowledge_agent/datas
+chmod -R u=rwX,g=rX,o= /opt/knowledge_agent/datas
+test "$(stat -c '%U:%G %a' /opt/knowledge_agent/.env)" = 'root:knowledge-agent 640'
+sudo -u knowledge-agent test -r /opt/knowledge_agent/.env
+sudo -u knowledge-agent test ! -w /opt/knowledge_agent/.env
+sudo -u knowledge-agent test -w /opt/knowledge_agent/datas
+sudo -u knowledge-agent test -r /opt/knowledge_agent/models/bge-base-zh-v1.5
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python /opt/knowledge_agent/scripts/bootstrap_admin.py
+```
+
+`scripts/bootstrap_admin.py` 不接受参数，要求交互式 TTY，并用 `getpass` 两次无回显读取密码；成功后数据库位于 `.env` 指定的 `APP_DB_PATH`。
+
+- [ ] **Step 7: 安装并启动 systemd 服务**
 
 ```bash
 cp /opt/knowledge_agent/deploy/systemd/knowledge-agent-api.service /etc/systemd/system/
 cp /opt/knowledge_agent/deploy/systemd/knowledge-agent-web.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now knowledge-agent-api.service
-systemctl enable --now knowledge-agent-web.service
-systemctl status knowledge-agent-api.service --no-pager
-systemctl status knowledge-agent-web.service --no-pager
+systemctl enable --now knowledge-agent-api.service knowledge-agent-web.service
+systemctl status knowledge-agent-api.service knowledge-agent-web.service --no-pager
 ```
 
-- [ ] **Step 7: 在服务器本机验收**
+两个 unit 必须以 `knowledge-agent:knowledge-agent` 运行并设置 `UMask=0027`。
+
+- [ ] **Step 8: 在服务器本机执行硬验收**
 
 ```bash
-curl --fail http://127.0.0.1:8000/health
-curl --fail http://127.0.0.1:8501/_stcore/health
-ss -lntp | grep -E ':7860|:8000|:8501'
-free -h
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
+for PORT in 7860 8000 8501; do
+  test -n "$(ss -lntH "sport = :$PORT")" || {
+    echo "FAIL: port $PORT is not listening" >&2
+    exit 1
+  }
+done
 systemctl is-active knowledge-agent-api.service knowledge-agent-web.service
+systemctl show knowledge-agent-api.service knowledge-agent-web.service -p NRestarts -p MemoryCurrent --no-pager
+test "$(systemctl show knowledge-agent-api.service -p NRestarts --value)" -eq 0
+test "$(systemctl show knowledge-agent-web.service -p NRestarts --value)" -eq 0
+API_MEMORY_BYTES=$(systemctl show knowledge-agent-api.service -p MemoryCurrent --value)
+WEB_MEMORY_BYTES=$(systemctl show knowledge-agent-web.service -p MemoryCurrent --value)
+test "$((API_MEMORY_BYTES + WEB_MEMORY_BYTES))" -lt $((3 * 1024 * 1024 * 1024))
+MEM_AVAILABLE_KIB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+test "$MEM_AVAILABLE_KIB" -ge $((256 * 1024))
+KERNEL_LOG=$(journalctl -k --since '-15 minutes' --no-pager)
+if grep -Ei 'oom-kill|out of memory|killed process' <<<"$KERNEL_LOG" >/dev/null; then
+  echo 'FAIL: kernel OOM evidence detected during deployment acceptance' >&2
+  exit 1
+fi
+free -h
+journalctl -u knowledge-agent-api.service -u knowledge-agent-web.service -n 100 --no-pager
 ```
 
-Expected: 三个端口均存在，两个新服务为 active，旧项目 `7860` 不受影响，无重启循环或 OOM。
+Expected：三个端口均存在，两个新服务为 `active`，两个 `NRestarts` 均为 `0`，新服务合计 `MemoryCurrent < 3 GiB`，`MemAvailable >= 256 MiB`，最近 15 分钟没有内核 OOM 证据，旧项目 `7860` 不受影响。任一条件失败即停止部署。
 
-- [ ] **Step 8: 配置安全组并做公网业务验收**
+- [ ] **Step 9: 配置安全组并做公网业务验收**
 
-在阿里云安全组新增 `TCP 8501` 入方向规则；优先将来源限制为用户当前公网 IP，仅在确需公开演示时使用 `0.0.0.0/0`。浏览器访问 `http://8.154.20.121:8501`，验证注册只能得到普通用户、管理员登录、基础知识检索、一次 LLM 对话、创建工单和管理员处理工单。
+在阿里云安全组新增 `TCP 8501` 入方向规则；优先将来源限制为用户当前公网 IP，仅在确需公开演示时使用 `0.0.0.0/0`。浏览器访问 `http://${KNOWLEDGE_AGENT_PUBLIC_HOST}:8501`，验证公共注册只能得到普通用户、初始化管理员可登录、基础知识检索、一次 LLM 对话、创建工单和管理员处理工单。
 
-- [ ] **Step 9: 验证重启恢复与回退边界**
+- [ ] **Step 10: 验证重启恢复与回退边界**
 
 ```bash
 systemctl restart knowledge-agent-api.service knowledge-agent-web.service
-curl --fail http://127.0.0.1:8000/health
-curl --fail http://127.0.0.1:8501/_stcore/health
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
 systemctl is-active knowledge-agent-api.service knowledge-agent-web.service
+systemctl show knowledge-agent-api.service knowledge-agent-web.service -p NRestarts -p MemoryCurrent --no-pager
 ```
 
-若新服务失败，只执行 `systemctl disable --now knowledge-agent-api.service knowledge-agent-web.service`；不得停止、删除或覆盖旧项目服务和 `/opt/Intelligent-EC-agent-jiu`。
+重启后重复 Step 8 的 `NRestarts`、内存和 OOM 硬检查，并确认管理员、文档和工单数据仍存在。若新服务失败，只执行 `systemctl disable --now knowledge-agent-api.service knowledge-agent-web.service`；不得停止、删除或覆盖旧项目服务和 `/opt/Intelligent-EC-agent-jiu`。

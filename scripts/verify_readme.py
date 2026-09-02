@@ -25,6 +25,7 @@ REQUIRED_PATHS = [
     "docs/resume_point.md",
     "使用说明书.md",
     "scripts/freshman_run.sh",
+    "scripts/bootstrap_admin.py",
     "scripts/verify_readme.py",
 ]
 
@@ -46,6 +47,9 @@ REQUIRED_PHRASES = [
     "模型、密钥和业务数据不随 Git 提供",
     "PROJECT_ROOT / models / bge-base-zh-v1.5",
     "BGE_MODEL_PATH",
+    "Ubuntu 22.04",
+    "root:knowledge-agent 640",
+    "getpass",
 ]
 
 REQUIRED_COMMAND_FRAGMENTS = [
@@ -62,6 +66,14 @@ REQUIRED_COMMAND_FRAGMENTS = [
     ".\\.venv\\Scripts\\Activate.ps1",
     ".venv\\Scripts\\python.exe -m pip install -r requirements.txt",
     "Copy-Item .env.example .env",
+    "python3.12 -m venv /opt/knowledge_agent/.venv",
+    "/opt/knowledge_agent/.venv/bin/python -m pip check",
+    "scripts/bootstrap_admin.py",
+    "sudo useradd --system",
+    "install -o root -g knowledge-agent -m 640",
+    "http://127.0.0.1:8501/_stcore/health",
+    "NRestarts",
+    "MemoryCurrent",
 ]
 
 FORBIDDEN_PHRASES = [
@@ -91,6 +103,13 @@ def main() -> int:
     for phrase in FORBIDDEN_PHRASES:
         if phrase in readme:
             failures.append(f"README contains machine-specific path: {phrase}")
+
+    if "python3 -m venv /opt/knowledge_agent/.venv" in readme:
+        failures.append("Ubuntu ECS commands must use python3.12")
+    if re.search(r"curl[^\n]*http://127\.0\.0\.1:8501/(?=\s|$)", readme):
+        failures.append("README must use Streamlit /_stcore/health")
+    if re.search(r"pytest 全量 harness：`\d+ passed", readme):
+        failures.append("README must not freeze an easily stale pytest count")
 
     for relative_path in REQUIRED_PATHS:
         if not (PROJECT_ROOT / relative_path).exists():
