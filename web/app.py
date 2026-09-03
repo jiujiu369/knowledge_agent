@@ -1203,7 +1203,9 @@ def render_upload() -> None:
                 selected_preview_doc = st.selectbox(
                     "选择要查看的文档",
                     docs,
-                    format_func=lambda item: f"#{item.get('id')} {item.get('title') or item.get('source_path')}",
+                    format_func=lambda item: (
+                        f"#{docs.index(item) + 1} {item.get('title') or item.get('source_path')}"
+                    ),
                     key="knowledge_preview_selector",
                 )
                 if st.button("查看原始内容", key="knowledge_preview_open", width="stretch"):
@@ -1222,7 +1224,9 @@ def render_upload() -> None:
                 selected_doc = st.selectbox(
                     "选择要删除的文档",
                     docs,
-                    format_func=lambda item: f"#{item.get('id')} {item.get('title') or item.get('source_path')}",
+                    format_func=lambda item: (
+                        f"#{docs.index(item) + 1} {item.get('title') or item.get('source_path')}"
+                    ),
                     key="knowledge_delete_selector",
                 )
                 confirm_doc_delete = st.checkbox(

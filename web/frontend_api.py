@@ -887,10 +887,12 @@ def knowledge_table_rows(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     :return: 返回使用中文列名的表格行。
     """
     rows: list[dict[str, Any]] = []
-    for doc in docs:
+    for display_number, doc in enumerate(docs, start=1):
         row: dict[str, Any] = {}
         for field, label in KNOWLEDGE_COLUMN_LABELS.items():
             value = doc.get(field)
+            if field == "id":
+                value = display_number
             row[label] = format_ui_datetime(value) if field.endswith("_at") else format_ui_value(value)
         rows.append(row)
     return rows

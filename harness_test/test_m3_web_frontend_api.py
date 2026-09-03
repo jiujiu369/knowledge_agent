@@ -7,19 +7,35 @@ import pytest
 
 
 def test_upload_knowledge_file_uses_original_filename(monkeypatch):
-    """上传临时文件时仍向后端传递用户选择的原始文件名。"""
+    """上传临时文件时仍向后端传递用户选择的原始文件名。
+
+    :param monkeypatch: pytest 提供的依赖替换夹具。
+    :return: 无返回值；断言 multipart 文件名使用原始中文名称。
+    """
     from web import frontend_api
 
     temporary_file = Path(__file__)
     captured = {}
 
     class FakeResponse:
+        """模拟成功的后端响应。"""
+
         status_code = 200
 
         def json(self):
+            """返回模拟 JSON 响应。
+
+            :return: 返回成功响应数据。
+            """
             return {"code": "ok", "data": {}}
 
     def fake_post(url, **kwargs):
+        """记录上传请求参数并返回成功响应。
+
+        :param url: 请求地址。
+        :param kwargs: 请求关键字参数。
+        :return: 返回模拟响应对象。
+        """
         captured.update(kwargs)
         return FakeResponse()
 
@@ -140,7 +156,7 @@ def test_local_launcher_can_parse_backend_port_pids():
 
 
 def test_knowledge_table_rows_have_chinese_headers():
-    """已入库文档表格使用中文表头，并保留原始字段值。
+    """已入库文档表格使用中文表头，并从一开始连续编号。
 
     :return: 无返回值；断言表格字段映射。
     """
@@ -155,19 +171,37 @@ def test_knowledge_table_rows_have_chinese_headers():
             "chunk_count": 12,
             "created_at": "2026-09-01T10:00:00",
             "updated_at": "2026-09-01T11:00:00",
-        }
+        },
+        {
+            "id": 12,
+            "source_path": r"F:\code\knowledge_agent\datas\流程.pdf",
+            "title": "流程.pdf",
+            "checksum": "abc",
+            "chunk_count": 3,
+            "created_at": "2026-09-01T12:00:00",
+            "updated_at": "2026-09-01T12:00:00",
+        },
     ]
 
     assert knowledge_table_rows(docs) == [
         {
-            "编号": 8,
+            "编号": 1,
             "文件路径": r"F:\code\knowledge_agent\datas\制度.pdf",
             "文件名": "制度.pdf",
             "校验值": "—",
             "文本块数": 12,
             "创建时间": "2026-09-01 10:00",
             "更新时间": "2026-09-01 11:00",
-        }
+        },
+        {
+            "编号": 2,
+            "文件路径": r"F:\code\knowledge_agent\datas\流程.pdf",
+            "文件名": "流程.pdf",
+            "校验值": "abc",
+            "文本块数": 3,
+            "创建时间": "2026-09-01 12:00",
+            "更新时间": "2026-09-01 12:00",
+        },
     ]
 
 

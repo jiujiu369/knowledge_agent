@@ -37,11 +37,14 @@ def test_common_modules_import():
     assert common.constants.BGE_MODEL_PATH == common.constants.PROJECT_ROOT / "models" / "bge-base-zh-v1.5"
 
 
-def test_llm_config_defaults_to_agnes_without_key_validation():
+def test_llm_config_defaults_to_agnes_without_key_validation(monkeypatch):
     """验证大语言模型配置`defaults``to``agnes``without``key``validation`。
 
+    :param monkeypatch: pytest 提供的环境变量隔离夹具。
     :return: 无返回值；函数通过副作用、断言或异常完成其职责。
     """
+    for name in ("AGNES_BASE_URL", "ARK_BASE_URL", "AGNES_MODEL", "ARK_MODEL"):
+        monkeypatch.setenv(name, "")
     from agent_server.core.config import get_llm_settings
 
     settings = get_llm_settings(validate_key=False)
