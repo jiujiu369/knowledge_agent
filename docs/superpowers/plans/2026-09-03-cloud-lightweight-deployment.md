@@ -406,11 +406,17 @@ test ! -e /opt/knowledge_agent/.venv
 python3.12 -m venv /opt/knowledge_agent/.venv
 /opt/knowledge_agent/.venv/bin/python -m pip install --upgrade pip
 /opt/knowledge_agent/.venv/bin/python -m pip install -r /opt/knowledge_agent/requirements-cloud.txt
-/opt/knowledge_agent/.venv/bin/python -m pip check
-sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python -c "import agent_server.main; import web.app; print('API_WEB_IMPORT_OK')"
+chown -R root:knowledge-agent /opt/knowledge_agent/.venv
+find /opt/knowledge_agent/.venv -type d -exec chmod 750 {} +
+find /opt/knowledge_agent/.venv -type f -exec chmod 640 {} +
+find /opt/knowledge_agent/.venv/bin -type f -exec chmod 750 {} +
+test "$(stat -c '%U:%G %a' /opt/knowledge_agent/.venv)" = 'root:knowledge-agent 750'
+sudo -u knowledge-agent test -x /opt/knowledge_agent/.venv/bin/python
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python -m pip check
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python -c "import site; import agent_server.main; import web.app; print('API_WEB_IMPORT_OK', site.getsitepackages())"
 ```
 
-必须看到 Python 3.12、`pip check` 无冲突和 `API_WEB_IMPORT_OK`。安装过程中持续观察 `free -h` 与 `df -h /`；不得复用或修改旧项目虚拟环境。
+必须看到 Python 3.12、`pip check` 无冲突和 `API_WEB_IMPORT_OK`。root 创建并安装后，整个 `.venv` 必须归属 `root:knowledge-agent`；目录为 `750`、普通文件为 `640`、`bin/` 下启动文件为 `750`，确保服务账户可执行 Python、可读取 site-packages 但不可修改环境。安装过程中持续观察 `free -h` 与 `df -h /`；不得复用或修改旧项目虚拟环境。
 
 - [ ] **Step 6: 配置密钥、数据、模型并一次性创建管理员**
 
@@ -449,49 +455,109 @@ systemctl status knowledge-agent-api.service knowledge-agent-web.service --no-pa
 
 两个 unit 必须以 `knowledge-agent:knowledge-agent` 运行并设置 `UMask=0027`。
 
-- [ ] **Step 8: 在服务器本机执行硬验收**
+- [ ] **Step 8: 在服务器本机按真实 RAG 负载执行两轮硬验收**
 
 ```bash
+set -euo pipefail
+read -r -p '预创建管理员用户名: ' KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME
+read -r -s -p '预创建管理员密码: ' KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD
+printf '\n'
+read -r -p '知识库真实检索问题: ' KNOWLEDGE_AGENT_RAG_PROBE_QUERY
+export KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD KNOWLEDGE_AGENT_RAG_PROBE_QUERY
+test -n "$KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME"
+test -n "$KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD"
+test -n "$KNOWLEDGE_AGENT_RAG_PROBE_QUERY"
+ACCEPTANCE_STARTED_AT=$(date --iso-8601=seconds)
+
+run_real_rag_probe() {
+  /opt/knowledge_agent/.venv/bin/python - <<'PY'
+import os
+
+import requests
+
+base_url = "http://127.0.0.1:8000"
+login = requests.post(
+    f"{base_url}/api/auth/login",
+    json={
+        "username": os.environ["KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME"],
+        "password": os.environ["KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD"],
+    },
+    timeout=20,
+)
+login.raise_for_status()
+login_payload = login.json()
+if login_payload.get("code") != "ok" or not login_payload.get("data", {}).get("token"):
+    raise SystemExit(f"FAIL: admin login failed: {login_payload}")
+headers = {"Authorization": f"Bearer {login_payload['data']['token']}"}
+
+rebuild = requests.post(f"{base_url}/api/knowledge/rebuild", headers=headers, timeout=600)
+rebuild.raise_for_status()
+rebuild_data = rebuild.json().get("data", {})
+stats = rebuild_data.get("stats") or []
+if rebuild_data.get("warning") or not stats or sum(int(item.get("chunks", 0)) for item in stats) < 1:
+    raise SystemExit(f"FAIL: real RAG rebuild did not embed chunks: {rebuild_data}")
+
+retrieval = requests.post(
+    f"{base_url}/api/tools/doc_retrieve",
+    headers=headers,
+    json={"query": os.environ["KNOWLEDGE_AGENT_RAG_PROBE_QUERY"], "top_k": 3},
+    timeout=300,
+)
+retrieval.raise_for_status()
+items = retrieval.json().get("data", {}).get("items") or []
+if not items or not any((item.get("metadata") or {}).get("retrieval") != "keyword" for item in items):
+    raise SystemExit(f"FAIL: real vector retrieval produced no result: {items}")
+print(f"RAG_REAL_PROBE_OK chunks={sum(int(item.get('chunks', 0)) for item in stats)} items={len(items)}")
+PY
+}
+
+check_loaded_service_state() {
+  systemctl is-active knowledge-agent-api.service knowledge-agent-web.service
+  systemctl show knowledge-agent-api.service knowledge-agent-web.service -p NRestarts -p MemoryCurrent --no-pager
+  test "$(systemctl show knowledge-agent-api.service -p NRestarts --value)" -eq 0
+  test "$(systemctl show knowledge-agent-web.service -p NRestarts --value)" -eq 0
+  API_MEMORY_BYTES=$(systemctl show knowledge-agent-api.service -p MemoryCurrent --value)
+  WEB_MEMORY_BYTES=$(systemctl show knowledge-agent-web.service -p MemoryCurrent --value)
+  test "$((API_MEMORY_BYTES + WEB_MEMORY_BYTES))" -lt $((3 * 1024 * 1024 * 1024))
+  MEM_AVAILABLE_KIB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+  test "$MEM_AVAILABLE_KIB" -ge $((256 * 1024))
+  KERNEL_LOG=$(journalctl -k --since "$ACCEPTANCE_STARTED_AT" --no-pager)
+  if grep -Ei 'oom-kill|out of memory|killed process' <<<"$KERNEL_LOG" >/dev/null; then
+    echo 'FAIL: kernel OOM evidence detected during deployment acceptance' >&2
+    exit 1
+  fi
+  for PORT in 7860 8000 8501; do
+    test -n "$(ss -lntH "sport = :$PORT")" || {
+      echo "FAIL: port $PORT is not listening" >&2
+      exit 1
+    }
+  done
+}
+
 curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
 curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
-for PORT in 7860 8000 8501; do
-  test -n "$(ss -lntH "sport = :$PORT")" || {
-    echo "FAIL: port $PORT is not listening" >&2
-    exit 1
-  }
-done
-systemctl is-active knowledge-agent-api.service knowledge-agent-web.service
-systemctl show knowledge-agent-api.service knowledge-agent-web.service -p NRestarts -p MemoryCurrent --no-pager
-test "$(systemctl show knowledge-agent-api.service -p NRestarts --value)" -eq 0
-test "$(systemctl show knowledge-agent-web.service -p NRestarts --value)" -eq 0
-API_MEMORY_BYTES=$(systemctl show knowledge-agent-api.service -p MemoryCurrent --value)
-WEB_MEMORY_BYTES=$(systemctl show knowledge-agent-web.service -p MemoryCurrent --value)
-test "$((API_MEMORY_BYTES + WEB_MEMORY_BYTES))" -lt $((3 * 1024 * 1024 * 1024))
-MEM_AVAILABLE_KIB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
-test "$MEM_AVAILABLE_KIB" -ge $((256 * 1024))
-KERNEL_LOG=$(journalctl -k --since '-15 minutes' --no-pager)
-if grep -Ei 'oom-kill|out of memory|killed process' <<<"$KERNEL_LOG" >/dev/null; then
-  echo 'FAIL: kernel OOM evidence detected during deployment acceptance' >&2
-  exit 1
-fi
+echo 'RAG_LOAD_PHASE=initial'
+run_real_rag_probe
+check_loaded_service_state
+
+systemctl restart knowledge-agent-api.service knowledge-agent-web.service
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
+echo 'RAG_LOAD_PHASE=post_restart'
+run_real_rag_probe
+check_loaded_service_state
+
+unset KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD
 free -h
 journalctl -u knowledge-agent-api.service -u knowledge-agent-web.service -n 100 --no-pager
 ```
 
-Expected：三个端口均存在，两个新服务为 `active`，两个 `NRestarts` 均为 `0`，新服务合计 `MemoryCurrent < 3 GiB`，`MemAvailable >= 256 MiB`，最近 15 分钟没有内核 OOM 证据，旧项目 `7860` 不受影响。任一条件失败即停止部署。
+执行前必须已有至少一份能产生 chunk 的真实知识文档，且 `KNOWLEDGE_AGENT_RAG_PROBE_QUERY` 必须是文档中的明确问题。首轮 API 重建和检索会让 API 进程加载 BGE；只有输出 `RAG_REAL_PROBE_OK` 后才读取 `MemoryCurrent`。脚本随后受控重启两个新服务、再次执行真实重建和向量检索，再重复 `NRestarts`、`MemoryCurrent`、`MemAvailable`、OOM 和端口检查。Expected：两轮均为 `active`、两个 `NRestarts` 均为 `0`、新服务合计 `MemoryCurrent < 3 GiB`、`MemAvailable >= 256 MiB`、验收窗口没有内核 OOM 证据，且旧项目 `7860` 不受影响。健康检查或空载内存不能代替这两轮结果；任一条件失败即停止部署。
 
 - [ ] **Step 9: 配置安全组并做公网业务验收**
 
 在阿里云安全组新增 `TCP 8501` 入方向规则；优先将来源限制为用户当前公网 IP，仅在确需公开演示时使用 `0.0.0.0/0`。浏览器访问 `http://${KNOWLEDGE_AGENT_PUBLIC_HOST}:8501`，验证公共注册只能得到普通用户、初始化管理员可登录、基础知识检索、一次 LLM 对话、创建工单和管理员处理工单。
 
-- [ ] **Step 10: 验证重启恢复与回退边界**
+- [ ] **Step 10: 验证持久数据与回退边界**
 
-```bash
-systemctl restart knowledge-agent-api.service knowledge-agent-web.service
-curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
-curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
-systemctl is-active knowledge-agent-api.service knowledge-agent-web.service
-systemctl show knowledge-agent-api.service knowledge-agent-web.service -p NRestarts -p MemoryCurrent --no-pager
-```
-
-重启后重复 Step 8 的 `NRestarts`、内存和 OOM 硬检查，并确认管理员、文档和工单数据仍存在。若新服务失败，只执行 `systemctl disable --now knowledge-agent-api.service knowledge-agent-web.service`；不得停止、删除或覆盖旧项目服务和 `/opt/Intelligent-EC-agent-jiu`。
+Step 8 已完成受控重启、重启后的真实 RAG 懒加载及第二轮内存/OOM 硬检查。此处再通过浏览器确认初始化管理员、知识文档和工单数据仍存在。若新服务失败，只执行 `systemctl disable --now knowledge-agent-api.service knowledge-agent-web.service`；不得停止、删除或覆盖旧项目服务和 `/opt/Intelligent-EC-agent-jiu`。

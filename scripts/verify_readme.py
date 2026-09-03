@@ -6,6 +6,26 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 README_PATH = PROJECT_ROOT / "README.md"
+DEPLOYMENT_PLAN_PATH = (
+    PROJECT_ROOT / "docs/superpowers/plans/2026-09-03-cloud-lightweight-deployment.md"
+)
+
+DEPLOYMENT_REQUIRED_FRAGMENTS = [
+    "chown -R root:knowledge-agent /opt/knowledge_agent/.venv",
+    "find /opt/knowledge_agent/.venv -type d -exec chmod 750 {} +",
+    "find /opt/knowledge_agent/.venv -type f -exec chmod 640 {} +",
+    "find /opt/knowledge_agent/.venv/bin -type f -exec chmod 750 {} +",
+    "stat -c '%U:%G %a' /opt/knowledge_agent/.venv",
+    "sudo -u knowledge-agent test -x /opt/knowledge_agent/.venv/bin/python",
+    "import site; import agent_server.main; import web.app",
+    "KNOWLEDGE_AGENT_RAG_PROBE_QUERY",
+    "/api/knowledge/rebuild",
+    "/api/tools/doc_retrieve",
+    "RAG_REAL_PROBE_OK",
+    "NRestarts",
+    "MemoryCurrent",
+    "KERNEL_LOG=",
+]
 
 REQUIRED_PATHS = [
     "README.md",
@@ -92,6 +112,48 @@ def main() -> int:
         return _finish(failures)
 
     readme = README_PATH.read_text(encoding="utf-8")
+    if not DEPLOYMENT_PLAN_PATH.exists():
+        failures.append("missing deployment plan")
+        plan = ""
+    else:
+        plan = DEPLOYMENT_PLAN_PATH.read_text(encoding="utf-8")
+
+    for label, document in (("README", readme), ("Task 6", plan)):
+        for fragment in DEPLOYMENT_REQUIRED_FRAGMENTS:
+            if fragment not in document:
+                failures.append(f"{label} missing deployment fragment: {fragment}")
+
+        initial_marker = document.find("echo 'RAG_LOAD_PHASE=initial'")
+        initial_probe = document.find("run_real_rag_probe", initial_marker + 1)
+        initial_check = document.find("check_loaded_service_state", initial_marker + 1)
+        restart = document.find(
+            "systemctl restart knowledge-agent-api.service knowledge-agent-web.service",
+            initial_marker + 1,
+        )
+        post_restart_marker = document.find("echo 'RAG_LOAD_PHASE=post_restart'", restart + 1)
+        post_restart_probe = document.find("run_real_rag_probe", post_restart_marker + 1)
+        post_restart_check = document.find("check_loaded_service_state", post_restart_marker + 1)
+        ordered_positions = (
+            ("echo 'RAG_LOAD_PHASE=initial'", initial_marker),
+            ("run_real_rag_probe", initial_probe),
+            ("check_loaded_service_state", initial_check),
+            (
+                "systemctl restart knowledge-agent-api.service knowledge-agent-web.service",
+                restart,
+            ),
+            ("echo 'RAG_LOAD_PHASE=post_restart'", post_restart_marker),
+            ("run_real_rag_probe", post_restart_probe),
+            ("check_loaded_service_state", post_restart_check),
+        )
+        previous = -1
+        for fragment, position in ordered_positions:
+            if position <= previous:
+                failures.append(
+                    f"{label} deployment acceptance order is invalid at: {fragment}"
+                )
+                break
+            previous = position
+
     for phrase in REQUIRED_PHRASES:
         if phrase not in readme:
             failures.append(f"README missing phrase: {phrase}")

@@ -226,9 +226,19 @@ def test_task6_and_readme_define_secure_reproducible_linux_acceptance() -> None:
         "install -o root -g knowledge-agent -m 640",
         "sudo -u knowledge-agent test -w /opt/knowledge_agent/datas",
         "sudo -u knowledge-agent test -r /opt/knowledge_agent/models/bge-base-zh-v1.5",
+        "chown -R root:knowledge-agent /opt/knowledge_agent/.venv",
+        "find /opt/knowledge_agent/.venv -type d -exec chmod 750 {} +",
+        "find /opt/knowledge_agent/.venv -type f -exec chmod 640 {} +",
+        "find /opt/knowledge_agent/.venv/bin -type f -exec chmod 750 {} +",
+        "stat -c '%U:%G %a' /opt/knowledge_agent/.venv",
+        "sudo -u knowledge-agent test -x /opt/knowledge_agent/.venv/bin/python",
         "/opt/knowledge_agent/.venv/bin/python -m pip check",
-        "import agent_server.main; import web.app",
+        "import site; import agent_server.main; import web.app",
         "http://127.0.0.1:8501/_stcore/health",
+        "KNOWLEDGE_AGENT_RAG_PROBE_QUERY",
+        "/api/knowledge/rebuild",
+        "/api/tools/doc_retrieve",
+        "RAG_REAL_PROBE_OK",
         "NRestarts",
         "MemoryCurrent",
         "KERNEL_LOG=",
@@ -241,9 +251,37 @@ def test_task6_and_readme_define_secure_reproducible_linux_acceptance() -> None:
         missing = {fragment for fragment in required_fragments if fragment not in document}
         assert not missing, missing
         assert "python3 -m venv /opt/knowledge_agent/.venv" not in document
+        cursor = -1
+        for fragment in (
+            "echo 'RAG_LOAD_PHASE=initial'",
+            "run_real_rag_probe",
+            "check_loaded_service_state",
+            "systemctl restart knowledge-agent-api.service knowledge-agent-web.service",
+            "echo 'RAG_LOAD_PHASE=post_restart'",
+            "run_real_rag_probe",
+            "check_loaded_service_state",
+        ):
+            cursor = document.find(fragment, cursor + 1)
+            assert cursor >= 0, f"deployment acceptance order missing: {fragment}"
     assert "8.154.20.121" not in plan
     assert "KNOWLEDGE_AGENT_ECS_SSH_TARGET" in plan
     assert not re.search(r"pytest 全量 harness：`\d+ passed", readme)
+
+
+def test_internal_sdd_artifacts_are_not_tracked() -> None:
+    """验证内部 SDD 运行报告不会进入产品提交。
+
+    :return: 无返回值；任何 ``.superpowers/sdd`` 文件被 Git 跟踪时断言失败。
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", ".superpowers/sdd"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+
+    assert tracked == []
 
 
 def test_static_checker_rejects_permissive_service_umask(tmp_path: Path) -> None:
