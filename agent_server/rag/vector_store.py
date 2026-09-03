@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Any
 
 import chromadb
+from chromadb.errors import NotFoundError
 from chromadb.api.models.Collection import Collection
 
 from agent_server.rag.chunker import DocumentChunk
@@ -66,10 +66,18 @@ class RagVectorStore:
         :raises VectorStoreUnavailable: 当代码中对应的校验或操作失败条件成立时抛出。
         """
         try:
-            if self.persist_dir.exists():
-                shutil.rmtree(self.persist_dir)
-            self._client = None
+            self.persist_dir.mkdir(parents=True, exist_ok=True)
+            if self._client is None:
+                self._client = chromadb.PersistentClient(path=str(self.persist_dir))
             self._collection = None
+            try:
+                self._client.delete_collection(name=self.collection_name)
+            except NotFoundError:
+                pass
+            self._collection = self._client.create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"},
+            )
             self.upsert_chunks(chunks)
         except Exception as exc:
             self.last_error = str(exc)
