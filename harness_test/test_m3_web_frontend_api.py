@@ -781,10 +781,11 @@ def test_chat_submission_reaches_stream_before_any_selector_rerun(monkeypatch):
 
     monkeypatch.setattr(app, "stream_chat", fake_stream)
 
-    app.render_chat()
+    with pytest.raises(_Rerun):
+        app.render_chat()
 
     assert calls == [("提交的问题", 2)]
-    assert fake_st.reruns == 0
+    assert fake_st.reruns == 1
     assert fake_st.session_state.messages[0]["role"] == "user"
     assert fake_st.session_state.messages[0]["content"] == "提交的问题"
     assert fake_st.session_state.messages[0]["conversation_id"] == 2
@@ -942,3 +943,26 @@ def test_all_streamlit_controls_have_explicit_stable_keys():
         if not any(keyword.arg == "key" for keyword in node.keywords):
             missing.append((node.lineno, node.func.attr))
     assert missing == []
+
+
+def test_sidebar_backend_api_address_is_read_only():
+    """侧边栏后端内部接口仅用于展示，不允许用户修改。
+
+    :return: 无返回值；函数通过 AST 断言输入框标签和禁用状态。
+    """
+    app_path = Path(__file__).resolve().parents[1] / "web" / "app.py"
+    tree = ast.parse(app_path.read_text(encoding="utf-8"))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "text_input"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "后端内部接口"
+    ]
+
+    assert len(calls) == 1
+    disabled = next((item.value for item in calls[0].keywords if item.arg == "disabled"), None)
+    assert isinstance(disabled, ast.Constant) and disabled.value is True
