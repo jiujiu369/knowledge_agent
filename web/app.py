@@ -1168,7 +1168,12 @@ def render_upload() -> None:
                 tmp.write(uploaded.getbuffer())
                 tmp_path = Path(tmp.name)
             progress.progress(25, text="正在上传文档")
-            upload_result = upload_knowledge_file(tmp_path, st.session_state.token, st.session_state.api_base_url)
+            upload_result = upload_knowledge_file(
+                tmp_path,
+                st.session_state.token,
+                st.session_state.api_base_url,
+                filename=uploaded.name,
+            )
             progress.progress(55, text="上传完成，正在重建索引")
             rebuild_result = rebuild_knowledge(st.session_state.token, st.session_state.api_base_url)
             progress.progress(100, text="入库完成")

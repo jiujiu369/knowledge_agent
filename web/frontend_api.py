@@ -1005,18 +1005,25 @@ def rebuild_knowledge(token: str, base_url: str | None = None) -> dict[str, Any]
     return response_data(response)
 
 
-def upload_knowledge_file(file_path: Path, token: str, base_url: str | None = None) -> dict[str, Any]:
+def upload_knowledge_file(
+    file_path: Path,
+    token: str,
+    base_url: str | None = None,
+    *,
+    filename: str | None = None,
+) -> dict[str, Any]:
     """上传知识库文件。
 
     :param file_path: 函数处理所需的“文件路径”数据，类型为 ``Path``。
     :param token: 用于身份认证或模型处理的令牌值，类型为 ``str``。
     :param base_url: 函数处理所需的“基础`url`”数据，类型为 ``str | None``。
+    :param filename: 发送给后端的原始文件名；临时文件上传时用于保留用户选择的名称。
     :return: 返回上传知识库文件得到的结果，返回类型为 ``dict[str, Any]``。
     """
     with file_path.open("rb") as handle:
         response = requests.post(
             f"{base_url or api_base_url()}/api/knowledge/upload",
-            files={"file": (file_path.name, handle)},
+            files={"file": (filename or file_path.name, handle)},
             headers=auth_headers(token),
             timeout=120,
         )

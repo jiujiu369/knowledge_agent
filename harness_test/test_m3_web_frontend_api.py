@@ -6,6 +6,35 @@ from pathlib import Path
 import pytest
 
 
+def test_upload_knowledge_file_uses_original_filename(monkeypatch):
+    """上传临时文件时仍向后端传递用户选择的原始文件名。"""
+    from web import frontend_api
+
+    temporary_file = Path(__file__)
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"code": "ok", "data": {}}
+
+    def fake_post(url, **kwargs):
+        captured.update(kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr(frontend_api.requests, "post", fake_post)
+
+    frontend_api.upload_knowledge_file(
+        temporary_file,
+        "token",
+        "http://127.0.0.1:8000",
+        filename="办公用品采购管理制度.pdf",
+    )
+
+    assert captured["files"]["file"][0] == "办公用品采购管理制度.pdf"
+
+
 def test_parse_sse_events_handles_named_events_and_json_data():
     """验证解析`sse``events``handles``named``events``and``json`数据。
 
