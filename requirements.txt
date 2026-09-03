@@ -1,4 +1,4 @@
-# 全量依赖合并版（供提前一键下载，等价于 M0+M3+M4 三份之和）
+# 本地全量运行与测试依赖（覆盖运行时代码直接导入及完整模型栈）
 # 安装：pip install -r requirements.txt
 # 提示：paddlepaddle / torch 体积较大，建议用国内源加速，例如：
 #   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -10,13 +10,30 @@ langchain
 langgraph
 chromadb
 sentence-transformers
+numpy
 pydantic
+python-dotenv
 python-multipart
 sse-starlette
+httpx
+openai
 rank_bm25
 jieba
+
+# ===== 文档与图片解析（本地全量 RAG）=====
+PyMuPDF
+pdfplumber
+python-docx
+Pillow
+
+# ===== 本地 OCR / reranker / VLM 完整模型栈 =====
 paddlepaddle
 paddleocr
+torch
+torchvision
+transformers
+accelerate
+bitsandbytes
 
 # ===== 前端（web）=====
 streamlit

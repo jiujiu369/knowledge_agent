@@ -5,17 +5,27 @@ from pathlib import Path
 import pytest
 
 
-def test_loader_scans_supported_docs_and_ignores_storage():
-    """验证`loader``scans``supported``docs``and``ignores``storage`。
+def test_loader_scans_supported_docs_and_ignores_storage(tmp_path: Path) -> None:
+    """验证扫描器只返回受支持文档并忽略内部存储目录。
 
-    :return: 无返回值；函数通过副作用、断言或异常完成其职责。
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :return: 无返回值；断言扫描结果不依赖仓库运行数据。
     """
     from agent_server.rag.loader import scan_source_files
 
-    files = scan_source_files(Path("datas"))
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    for name in ("制度.pdf", "运维手册.docx", "旧版.doc"):
+        (source_dir / name).write_bytes(b"fixture")
+    (source_dir / "app.db").write_bytes(b"sqlite")
+    chroma_dir = source_dir / "chroma"
+    chroma_dir.mkdir()
+    (chroma_dir / "index.docx").write_bytes(b"index")
+
+    files = scan_source_files(source_dir)
     names = {path.name for path in files}
 
-    assert "IDC运维管理手册.docx" in names
+    assert names == {"制度.pdf", "运维手册.docx", "旧版.doc"}
     assert "app.db" not in names
     assert all("chroma" not in path.parts for path in files)
     assert all(path.suffix.lower() in {".pdf", ".docx", ".doc"} for path in files)
@@ -59,8 +69,9 @@ def test_embedding_config_uses_local_bge_path():
     :return: 无返回值；函数通过副作用、断言或异常完成其职责。
     """
     from agent_server.rag.embed_loader import BGE_MODEL_PATH, EXPECTED_EMBEDDING_DIM
+    from common.constants import BGE_MODEL_PATH as configured_model_path
 
-    assert BGE_MODEL_PATH == r"F:\code\knowledge_agent\models\bge-base-zh-v1.5"
+    assert BGE_MODEL_PATH == configured_model_path
     assert EXPECTED_EMBEDDING_DIM == 768
 
 

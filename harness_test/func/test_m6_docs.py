@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PYTHON_EXE = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
 
 
 def test_verify_readme_script_passes():
@@ -14,7 +14,7 @@ def test_verify_readme_script_passes():
     :return: 无返回值；函数通过副作用、断言或异常完成其职责。
     """
     result = subprocess.run(
-        [str(PYTHON_EXE), "scripts/verify_readme.py"],
+        [sys.executable, "scripts/verify_readme.py"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,

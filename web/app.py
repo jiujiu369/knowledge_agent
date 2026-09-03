@@ -430,8 +430,11 @@ def render_sidebar() -> str:
     """
     with st.sidebar:
         st.subheader("服务")
-        st.session_state.api_base_url = st.text_input(
-            "接口地址", value=st.session_state.api_base_url, key="sidebar_api_base_url"
+        st.text_input(
+            "后端内部接口",
+            value=st.session_state.api_base_url,
+            disabled=True,
+            key="sidebar_internal_api_base_url",
         )
 
         if is_logged_in():
@@ -703,8 +706,7 @@ def render_chat() -> None:
             if current.get("display_title") == "新对话":
                 current["title"] = question[:24]
                 current["display_title"] = question[:24]
-            if st.session_state.pending_ticket_suggestion:
-                st.rerun()
+            st.rerun()
         except Exception as exc:
             error_message = localize_ui_error(exc)
             answer_placeholder.markdown(f"请求失败：{error_message}")
@@ -1168,7 +1170,12 @@ def render_upload() -> None:
                 tmp.write(uploaded.getbuffer())
                 tmp_path = Path(tmp.name)
             progress.progress(25, text="正在上传文档")
-            upload_result = upload_knowledge_file(tmp_path, st.session_state.token, st.session_state.api_base_url)
+            upload_result = upload_knowledge_file(
+                tmp_path,
+                st.session_state.token,
+                st.session_state.api_base_url,
+                filename=uploaded.name,
+            )
             progress.progress(55, text="上传完成，正在重建索引")
             rebuild_result = rebuild_knowledge(st.session_state.token, st.session_state.api_base_url)
             progress.progress(100, text="入库完成")
@@ -1198,7 +1205,9 @@ def render_upload() -> None:
                 selected_preview_doc = st.selectbox(
                     "选择要查看的文档",
                     docs,
-                    format_func=lambda item: f"#{item.get('id')} {item.get('title') or item.get('source_path')}",
+                    format_func=lambda item: (
+                        f"#{docs.index(item) + 1} {item.get('title') or item.get('source_path')}"
+                    ),
                     key="knowledge_preview_selector",
                 )
                 if st.button("查看原始内容", key="knowledge_preview_open", width="stretch"):
@@ -1217,7 +1226,9 @@ def render_upload() -> None:
                 selected_doc = st.selectbox(
                     "选择要删除的文档",
                     docs,
-                    format_func=lambda item: f"#{item.get('id')} {item.get('title') or item.get('source_path')}",
+                    format_func=lambda item: (
+                        f"#{docs.index(item) + 1} {item.get('title') or item.get('source_path')}"
+                    ),
                     key="knowledge_delete_selector",
                 )
                 confirm_doc_delete = st.checkbox(

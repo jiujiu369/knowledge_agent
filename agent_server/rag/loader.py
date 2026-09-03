@@ -18,12 +18,11 @@ import fitz
 import pdfplumber
 from docx import Document
 
-from common.constants import DATAS_DIR, PROJECT_ROOT
+from common.constants import DATAS_DIR, PROJECT_ROOT, VLM_MODEL_DIR
 
 
 LOGGER = logging.getLogger(__name__)
 SUPPORTED_SUFFIXES = {".pdf", ".docx", ".doc"}
-VLM_MODEL_DIR = PROJECT_ROOT / "models" / "qwen2.5-vl"
 VLM_REQUIRED_FILES = ("config.json",)
 
 

@@ -6,6 +6,51 @@ from pathlib import Path
 import pytest
 
 
+def test_upload_knowledge_file_uses_original_filename(monkeypatch):
+    """上传临时文件时仍向后端传递用户选择的原始文件名。
+
+    :param monkeypatch: pytest 提供的依赖替换夹具。
+    :return: 无返回值；断言 multipart 文件名使用原始中文名称。
+    """
+    from web import frontend_api
+
+    temporary_file = Path(__file__)
+    captured = {}
+
+    class FakeResponse:
+        """模拟成功的后端响应。"""
+
+        status_code = 200
+
+        def json(self):
+            """返回模拟 JSON 响应。
+
+            :return: 返回成功响应数据。
+            """
+            return {"code": "ok", "data": {}}
+
+    def fake_post(url, **kwargs):
+        """记录上传请求参数并返回成功响应。
+
+        :param url: 请求地址。
+        :param kwargs: 请求关键字参数。
+        :return: 返回模拟响应对象。
+        """
+        captured.update(kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr(frontend_api.requests, "post", fake_post)
+
+    frontend_api.upload_knowledge_file(
+        temporary_file,
+        "token",
+        "http://127.0.0.1:8000",
+        filename="办公用品采购管理制度.pdf",
+    )
+
+    assert captured["files"]["file"][0] == "办公用品采购管理制度.pdf"
+
+
 def test_parse_sse_events_handles_named_events_and_json_data():
     """验证解析`sse``events``handles``named``events``and``json`数据。
 
@@ -111,7 +156,7 @@ def test_local_launcher_can_parse_backend_port_pids():
 
 
 def test_knowledge_table_rows_have_chinese_headers():
-    """已入库文档表格使用中文表头，并保留原始字段值。
+    """已入库文档表格使用中文表头，并从一开始连续编号。
 
     :return: 无返回值；断言表格字段映射。
     """
@@ -126,19 +171,37 @@ def test_knowledge_table_rows_have_chinese_headers():
             "chunk_count": 12,
             "created_at": "2026-09-01T10:00:00",
             "updated_at": "2026-09-01T11:00:00",
-        }
+        },
+        {
+            "id": 12,
+            "source_path": r"F:\code\knowledge_agent\datas\流程.pdf",
+            "title": "流程.pdf",
+            "checksum": "abc",
+            "chunk_count": 3,
+            "created_at": "2026-09-01T12:00:00",
+            "updated_at": "2026-09-01T12:00:00",
+        },
     ]
 
     assert knowledge_table_rows(docs) == [
         {
-            "编号": 8,
+            "编号": 1,
             "文件路径": r"F:\code\knowledge_agent\datas\制度.pdf",
             "文件名": "制度.pdf",
             "校验值": "—",
             "文本块数": 12,
             "创建时间": "2026-09-01 10:00",
             "更新时间": "2026-09-01 11:00",
-        }
+        },
+        {
+            "编号": 2,
+            "文件路径": r"F:\code\knowledge_agent\datas\流程.pdf",
+            "文件名": "流程.pdf",
+            "校验值": "abc",
+            "文本块数": 3,
+            "创建时间": "2026-09-01 12:00",
+            "更新时间": "2026-09-01 12:00",
+        },
     ]
 
 
@@ -718,10 +781,11 @@ def test_chat_submission_reaches_stream_before_any_selector_rerun(monkeypatch):
 
     monkeypatch.setattr(app, "stream_chat", fake_stream)
 
-    app.render_chat()
+    with pytest.raises(_Rerun):
+        app.render_chat()
 
     assert calls == [("提交的问题", 2)]
-    assert fake_st.reruns == 0
+    assert fake_st.reruns == 1
     assert fake_st.session_state.messages[0]["role"] == "user"
     assert fake_st.session_state.messages[0]["content"] == "提交的问题"
     assert fake_st.session_state.messages[0]["conversation_id"] == 2
@@ -879,3 +943,26 @@ def test_all_streamlit_controls_have_explicit_stable_keys():
         if not any(keyword.arg == "key" for keyword in node.keywords):
             missing.append((node.lineno, node.func.attr))
     assert missing == []
+
+
+def test_sidebar_backend_api_address_is_read_only():
+    """侧边栏后端内部接口仅用于展示，不允许用户修改。
+
+    :return: 无返回值；函数通过 AST 断言输入框标签和禁用状态。
+    """
+    app_path = Path(__file__).resolve().parents[1] / "web" / "app.py"
+    tree = ast.parse(app_path.read_text(encoding="utf-8"))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "text_input"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "后端内部接口"
+    ]
+
+    assert len(calls) == 1
+    disabled = next((item.value for item in calls[0].keywords if item.arg == "disabled"), None)
+    assert isinstance(disabled, ast.Constant) and disabled.value is True

@@ -6,6 +6,7 @@ import time
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
+from agent_server.core.auth import register_user
 from agent_server.main import app
 
 
@@ -57,8 +58,7 @@ def main() -> None:
     assert r.status_code == 403, r.text
 
     print("M2 smoke: register/login admin")
-    r = client.post("/api/auth/register", json={"username": admin, "password": password, "role": "admin"})
-    assert r.status_code == 200, r.text
+    register_user(admin, password, "admin")
     r = client.post("/api/auth/login", json={"username": admin, "password": password})
     assert r.status_code == 200, r.text
     admin_headers = {"Authorization": f"Bearer {r.json()['data']['token']}"}

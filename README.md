@@ -13,61 +13,255 @@
 - 云端 LLM 客户端默认忽略系统代理环境变量，避免本机代理异常导致 Ark/Agnes HTTPS 连接失败。
 - API key 只走环境变量：复制 `.env.example` 为 `.env` 后填写 `AGNES_API_KEY` 或 `ARK_API_KEY`，代码和文档不写真实 key。
 
-## 当前可用状态
+## 运行模式与交付边界
 
-- 后端 API：`/health` 可正常返回 `{"status":"ok"}`。
-- 云端 LLM：`.env` 配置的 Ark/Agnes OpenAI 兼容接口可用；客户端已禁用系统代理继承。
-- 本地 VLM：`models/qwen2.5-vl/` 权重、`bitsandbytes`、4-bit 加载链路已打通，可用于插图语义增强。
-- 本地 RAG：BGE Embedding、Chroma、PaddleOCR、reranker 均按本地链路运行。
+本仓库支持同一代码库的两种运行方式：**本地全量模式**用于 Windows 演示与完整 RAG 能力；**ECS 轻量模式**用于 Linux 常驻服务。模型、密钥和业务数据不随 Git 提供：克隆仓库后仍需由部署者准备模型权重、`.env` 中的 LLM 密钥，以及自己的 `datas/` 业务数据和数据库备份，不能将“可克隆”视为“已可全量运行”。
 
-## 环境
+### 本地全量模式
 
-- 项目路径：`F:\code\knowledge_agent`
-- Python：`F:\code\knowledge_agent\.venv\Scripts\python.exe`
-- 固定版本：Python 3.12.9
-- 本项目以本地运行为主，不部署云端。
+适用场景：Windows 本地演示，需要 Embedding、reranker、OCR 与 VLM 插图增强的完整链路。
 
-检查版本：
+项目根目录需要由部署者自行放置以下本地模型（均被 Git 忽略）：
 
-```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe --version
+```text
+models/
+├── bge-base-zh-v1.5/
+├── bge-reranker-base/
+└── qwen2.5-vl/
 ```
 
-## 本地启动
-
-启动后端：
+环境：Python 3.12.9。以下 Windows PowerShell 命令从 Git 克隆后在任意本地目录创建独立环境；`<仓库 HTTPS 地址>` 由部署者替换为实际仓库地址。
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000
+git clone <仓库 HTTPS 地址> knowledge_agent
+Set-Location .\knowledge_agent
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-启动前端：
+在本机 `.env` 填入有效的 `AGNES_API_KEY` 或 `ARK_API_KEY`，并自行准备上述三个模型目录；不要把 `.env`、模型目录或 `datas/` 提交到 Git。本地全量模式使用 `.env.example` 中的 `VLM_ENABLED=true` 和 `RERANKER_ENABLED=true`。启动后端与前端：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false
+.venv\Scripts\python.exe -m uvicorn agent_server.main:app --host 127.0.0.1 --port 8000
+.venv\Scripts\python.exe -m streamlit run web/app.py --server.address 0.0.0.0 --server.port 8501 --browser.gatherUsageStats false
 ```
 
-本地启动器：
+也可使用本地启动器：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe web/local_launcher.py
+.venv\Scripts\python.exe web/local_launcher.py
 ```
 
-访问地址：
+访问地址：后端健康检查 `http://127.0.0.1:8000/health`，Swagger `http://127.0.0.1:8000/docs`，前端 `http://localhost:8501`。
 
-- 后端健康检查：`http://127.0.0.1:8000/health`
-- 后端 Swagger：`http://127.0.0.1:8000/docs`
-- 前端页面：`http://localhost:8501`
+### ECS 轻量模式
 
-## 首次演示账号
+适用场景：Linux ECS 常驻运行。该模式只保留本地 BGE 检索和 Chroma；关闭 VLM、reranker 和其重型依赖，不应把本地全量模型目录直接作为 ECS 前置条件。
 
-系统不内置固定管理员账号。首次演示时先注册管理员：
+1. Ubuntu 22.04 自带的 `python3` 是 Python 3.10，不能用它创建本项目环境。先显式安装并确认 Python 3.12：
 
-```powershell
-curl -X POST http://127.0.0.1:8000/api/auth/register -H "Content-Type: application/json" -d "{\"username\":\"admin_demo\",\"password\":\"Passw0rd!\",\"role\":\"admin\"}"
+```bash
+sudo apt-get update
+sudo apt-get install -y software-properties-common git
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+sudo apt-get update
+sudo apt-get install -y python3.12 python3.12-venv
+python3.12 --version
 ```
 
-然后在前端使用 `admin_demo / Passw0rd!` 登录。管理员可以创建普通用户，默认密码为 `123456`。
+2. **先**创建与 systemd 一致的运行身份，再克隆代码和分配最小权限。代码、虚拟环境、模型和 `.env` 由 root 管理；服务账户只写 `datas/`，只读模型和密钥。全新安装执行：
+
+```bash
+export KNOWLEDGE_AGENT_REPO_URL='<你的仓库 HTTPS 地址>'
+sudo useradd --system --user-group --home-dir /opt/knowledge_agent --no-create-home --shell /usr/sbin/nologin knowledge-agent
+sudo git clone "$KNOWLEDGE_AGENT_REPO_URL" /opt/knowledge_agent
+cd /opt/knowledge_agent
+sudo chown -R root:knowledge-agent /opt/knowledge_agent
+sudo chmod -R u=rwX,g=rX,o= /opt/knowledge_agent
+sudo install -d -o knowledge-agent -g knowledge-agent -m 750 /opt/knowledge_agent/datas /opt/knowledge_agent/datas/chroma /opt/knowledge_agent/datas/logs
+sudo install -d -o root -g knowledge-agent -m 750 /opt/knowledge_agent/models /opt/knowledge_agent/models/bge-base-zh-v1.5
+sudo install -o root -g knowledge-agent -m 640 /opt/knowledge_agent/deploy/knowledge-agent.env.example /opt/knowledge_agent/.env
+```
+
+若用户或目录已存在，先用 `id knowledge-agent`、`git -C /opt/knowledge_agent status` 检查，不要重复 `useradd`、覆盖目录或删除既有 `.env`/数据。
+
+3. 以受控方式将 BGE 权重放入 `/opt/knowledge_agent/models/bge-base-zh-v1.5/`，将业务文档、SQLite 与 Chroma 数据放在 `/opt/knowledge_agent/datas/`。用 `sudoedit /opt/knowledge_agent/.env` 填入实际 LLM 密钥；不要把密钥放入命令参数、`export`、聊天或日志。模板中的轻量关键值必须保持：
+
+```dotenv
+VLM_ENABLED=false
+RERANKER_ENABLED=false
+DATAS_DIR=/opt/knowledge_agent/datas
+APP_DB_PATH=/opt/knowledge_agent/datas/app.db
+CHROMA_DIR=/opt/knowledge_agent/datas/chroma
+BGE_MODEL_PATH=/opt/knowledge_agent/models/bge-base-zh-v1.5
+QA_LOG_PATH=/opt/knowledge_agent/datas/logs/qa_events.jsonl
+KNOWLEDGE_AGENT_API_BASE_URL=http://127.0.0.1:8000
+```
+
+上传完成后收紧模型权限并硬检查服务账户权限；`.env` 必须保持 `root:knowledge-agent 640`，服务账户可读但不可写：
+
+```bash
+sudo chown -R root:knowledge-agent /opt/knowledge_agent/models
+sudo find /opt/knowledge_agent/models -type d -exec chmod 750 {} +
+sudo find /opt/knowledge_agent/models -type f -exec chmod 640 {} +
+sudo chown -R knowledge-agent:knowledge-agent /opt/knowledge_agent/datas
+sudo chmod -R u=rwX,g=rX,o= /opt/knowledge_agent/datas
+test "$(stat -c '%U:%G %a' /opt/knowledge_agent/.env)" = 'root:knowledge-agent 640'
+sudo -u knowledge-agent test -r /opt/knowledge_agent/.env
+sudo -u knowledge-agent test ! -w /opt/knowledge_agent/.env
+sudo -u knowledge-agent test -w /opt/knowledge_agent/datas
+sudo -u knowledge-agent test -r /opt/knowledge_agent/models/bge-base-zh-v1.5
+```
+
+4. 用 Python 3.12 创建全新的 Linux 虚拟环境，安装未削弱的轻量依赖，并在启动前做依赖和导入验收。若 `.venv` 已存在，停止并查明来源，不要在未知环境上覆盖安装：
+
+```bash
+test ! -e /opt/knowledge_agent/.venv
+sudo python3.12 -m venv /opt/knowledge_agent/.venv
+sudo /opt/knowledge_agent/.venv/bin/python -m pip install --upgrade pip
+sudo /opt/knowledge_agent/.venv/bin/python -m pip install -r /opt/knowledge_agent/requirements-cloud.txt
+sudo chown -R root:knowledge-agent /opt/knowledge_agent/.venv
+sudo find /opt/knowledge_agent/.venv -type d -exec chmod 750 {} +
+sudo find /opt/knowledge_agent/.venv -type f -exec chmod 640 {} +
+sudo find /opt/knowledge_agent/.venv/bin -type f -exec chmod 750 {} +
+test "$(stat -c '%U:%G %a' /opt/knowledge_agent/.venv)" = 'root:knowledge-agent 750'
+sudo -u knowledge-agent test -x /opt/knowledge_agent/.venv/bin/python
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python -m pip check
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python -c "import site; import agent_server.main; import web.app; print('API_WEB_IMPORT_OK', site.getsitepackages())"
+```
+
+这组命令必须保持顺序：root 负责创建和安装 `.venv`，安装结束后再把整个虚拟环境归属设为 `root:knowledge-agent`；目录为 `750`、普通文件为 `640`、`bin/` 下启动文件为 `750`。这样服务账户只能读取依赖并执行虚拟环境命令，不能修改代码或依赖；`.env` 仍为 `root:knowledge-agent 640`，`datas/` 仍由服务账户写入，`models/` 仍只读。
+
+5. 在启动公网服务前创建首个管理员。该命令不接受任何参数，也不从环境变量读取管理员密码；它要求交互式 TTY，并通过 `getpass` 两次无回显读取密码，再调用服务端认证逻辑创建 `admin`：
+
+```bash
+cd /opt/knowledge_agent
+sudo -u knowledge-agent /opt/knowledge_agent/.venv/bin/python /opt/knowledge_agent/scripts/bootstrap_admin.py
+```
+
+6. 安装 systemd 单元。`knowledge-agent-api` 仅监听 `127.0.0.1:8000`，`knowledge-agent-web` 对外提供 `8501`；生产环境仍应按自己的网络策略限制访问该端口：
+
+```bash
+sudo cp /opt/knowledge_agent/deploy/systemd/knowledge-agent-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now knowledge-agent-api knowledge-agent-web
+sudo systemctl status knowledge-agent-api knowledge-agent-web --no-pager
+```
+
+7. 用真实 RAG、自动重启计数、cgroup 内存与内核 OOM 日志做硬验收。开始前必须已有至少一份能产生 chunk 的真实知识文档；检索问题必须是该文档中的明确内容。先通过 API 重建并检索，使 BGE 在 API 服务进程内完成懒加载，再读取内存；受控重启后必须再次检索触发懒加载并复测。两个新服务合计 `MemoryCurrent` 必须低于 3 GiB，`MemAvailable` 不低于 256 MiB，且两轮 `NRestarts=0`：
+
+```bash
+set -euo pipefail
+read -r -p '预创建管理员用户名: ' KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME
+read -r -s -p '预创建管理员密码: ' KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD
+printf '\n'
+read -r -p '知识库真实检索问题: ' KNOWLEDGE_AGENT_RAG_PROBE_QUERY
+export KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD KNOWLEDGE_AGENT_RAG_PROBE_QUERY
+test -n "$KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME"
+test -n "$KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD"
+test -n "$KNOWLEDGE_AGENT_RAG_PROBE_QUERY"
+ACCEPTANCE_STARTED_AT=$(date --iso-8601=seconds)
+
+run_real_rag_probe() {
+  /opt/knowledge_agent/.venv/bin/python - <<'PY'
+import os
+
+import requests
+
+base_url = "http://127.0.0.1:8000"
+login = requests.post(
+    f"{base_url}/api/auth/login",
+    json={
+        "username": os.environ["KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME"],
+        "password": os.environ["KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD"],
+    },
+    timeout=20,
+)
+login.raise_for_status()
+login_payload = login.json()
+if login_payload.get("code") != "ok" or not login_payload.get("data", {}).get("token"):
+    raise SystemExit(f"FAIL: admin login failed: {login_payload}")
+headers = {"Authorization": f"Bearer {login_payload['data']['token']}"}
+
+rebuild = requests.post(f"{base_url}/api/knowledge/rebuild", headers=headers, timeout=600)
+rebuild.raise_for_status()
+rebuild_data = rebuild.json().get("data", {})
+stats = rebuild_data.get("stats") or []
+if rebuild_data.get("warning") or not stats or sum(int(item.get("chunks", 0)) for item in stats) < 1:
+    raise SystemExit(f"FAIL: real RAG rebuild did not embed chunks: {rebuild_data}")
+
+retrieval = requests.post(
+    f"{base_url}/api/tools/doc_retrieve",
+    headers=headers,
+    json={"query": os.environ["KNOWLEDGE_AGENT_RAG_PROBE_QUERY"], "top_k": 3},
+    timeout=300,
+)
+retrieval.raise_for_status()
+items = retrieval.json().get("data", {}).get("items") or []
+if not items or not any((item.get("metadata") or {}).get("retrieval") != "keyword" for item in items):
+    raise SystemExit(f"FAIL: real vector retrieval produced no result: {items}")
+print(f"RAG_REAL_PROBE_OK chunks={sum(int(item.get('chunks', 0)) for item in stats)} items={len(items)}")
+PY
+}
+
+check_loaded_service_state() {
+  sudo systemctl is-active knowledge-agent-api.service knowledge-agent-web.service
+  sudo systemctl show knowledge-agent-api.service knowledge-agent-web.service -p NRestarts -p MemoryCurrent --no-pager
+  test "$(sudo systemctl show knowledge-agent-api.service -p NRestarts --value)" -eq 0
+  test "$(sudo systemctl show knowledge-agent-web.service -p NRestarts --value)" -eq 0
+  API_MEMORY_BYTES=$(sudo systemctl show knowledge-agent-api.service -p MemoryCurrent --value)
+  WEB_MEMORY_BYTES=$(sudo systemctl show knowledge-agent-web.service -p MemoryCurrent --value)
+  test "$((API_MEMORY_BYTES + WEB_MEMORY_BYTES))" -lt $((3 * 1024 * 1024 * 1024))
+  MEM_AVAILABLE_KIB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+  test "$MEM_AVAILABLE_KIB" -ge $((256 * 1024))
+  KERNEL_LOG=$(sudo journalctl -k --since "$ACCEPTANCE_STARTED_AT" --no-pager)
+  if grep -Ei 'oom-kill|out of memory|killed process' <<<"$KERNEL_LOG" >/dev/null; then
+    echo 'FAIL: kernel OOM evidence detected during deployment acceptance' >&2
+    exit 1
+  fi
+  for PORT in 7860 8000 8501; do
+    test -n "$(ss -lntH "sport = :$PORT")" || {
+      echo "FAIL: port $PORT is not listening" >&2
+      exit 1
+    }
+  done
+}
+
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
+echo 'RAG_LOAD_PHASE=initial'
+run_real_rag_probe
+check_loaded_service_state
+
+sudo systemctl restart knowledge-agent-api.service knowledge-agent-web.service
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8000/health
+curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
+echo 'RAG_LOAD_PHASE=post_restart'
+run_real_rag_probe
+check_loaded_service_state
+
+unset KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD
+free -h
+sudo journalctl -u knowledge-agent-api.service -u knowledge-agent-web.service -n 100 --no-pager
+```
+
+两轮检查都必须在 `RAG_REAL_PROBE_OK` 之后执行；健康检查或空载进程的内存不能代替 BGE 加载后的结果。若任一硬条件失败，只停止这两个新服务，不触碰旧项目或 `7860`。
+
+### 管理员与 Web 冒烟
+
+公网 `POST /api/auth/register` 只会创建 `employee`；不要再通过公网注册接口创建管理员。管理员必须在受信任的初始化或运维流程中预创建，且用户名、密码不得写入 Git、文档或命令历史。
+
+Web 冒烟测试只登录这个预创建管理员。运行前在受限的部署环境中提供以下环境变量，再执行测试：
+
+```bash
+export KNOWLEDGE_AGENT_SMOKE_ADMIN_USERNAME='<预创建管理员用户名>'
+export KNOWLEDGE_AGENT_SMOKE_ADMIN_PASSWORD='<预创建管理员密码>'
+sudo -u knowledge-agent -E /opt/knowledge_agent/.venv/bin/python /opt/knowledge_agent/web/smoke_test.py
+```
+
+缺少任一变量时 `web/smoke_test.py` 会停止，不会注册或提升管理员账号。
 
 ## 核心流程
 
@@ -181,55 +375,55 @@ curl -X POST http://127.0.0.1:8000/api/auth/register -H "Content-Type: applicati
 后端健康检查：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from fastapi.testclient import TestClient; from agent_server.main import app; r=TestClient(app).get('/health'); print(r.status_code, r.text)"
+.venv\Scripts\python.exe -c "from fastapi.testclient import TestClient; from agent_server.main import app; r=TestClient(app).get('/health'); print(r.status_code, r.text)"
 ```
 
 云端 LLM 连通性：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from agent_server.core.llm_client import chat_completion; print(chat_completion([{'role':'user','content':'只回复 OK'}], temperature=0))"
+.venv\Scripts\python.exe -c "from agent_server.core.llm_client import chat_completion; print(chat_completion([{'role':'user','content':'只回复 OK'}], temperature=0))"
 ```
 
 本地 VLM 状态：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -c "from agent_server.rag.loader import vlm_status; import json; print(json.dumps(vlm_status(), ensure_ascii=False, indent=2))"
+.venv\Scripts\python.exe -c "from agent_server.rag.loader import vlm_status; import json; print(json.dumps(vlm_status(), ensure_ascii=False, indent=2))"
 ```
 
 RAG 冒烟：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m agent_server.rag.smoke_test
+.venv\Scripts\python.exe -m agent_server.rag.smoke_test
 ```
 
 后端冒烟：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m agent_server.smoke_test
+.venv\Scripts\python.exe -m agent_server.smoke_test
 ```
 
 Harness 测试：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m pytest harness_test -q
+.venv\Scripts\python.exe -m pytest harness_test -q
 ```
 
 M4 测试与短压测：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe run_harness.py --stress-duration 10s
+.venv\Scripts\python.exe run_harness.py --stress-duration 10s
 ```
 
 M5 Loop 优化报告：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m loop_optimizer.run_loop
+.venv\Scripts\python.exe -m loop_optimizer.run_loop
 ```
 
 README 校验：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
+.venv\Scripts\python.exe scripts\verify_readme.py
 ```
 
 ## 文档
@@ -244,7 +438,7 @@ F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
 
 ## 当前量化结果
 
-- pytest 全量 harness：`52 passed, 1 skipped`
+- pytest 全量 harness：以当前 checkout 执行“自检命令”中的全量命令为准；最近一次发布前证据记录在对应验收报告中，README 不固化易过期的用例数。
 - M4 50 并发：QPS `73.811`，P95 `1000 ms`，失败率 `0.0%`
 - M4 100 并发：QPS `74.8723`，P95 `2000 ms`，失败率 `0.0%`
 - M5 Loop：`bad_sample.csv`、`optimize_report.md`、`prompt_diff.md` 已生成，脚本不自动修改线上 Prompt。
@@ -253,7 +447,7 @@ F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
 
 - loader：已支持 PDF、`.docx`、`.doc` 转换兜底、表格 Markdown 化、插图 OCR / EMF 文本抽取。
 - chunker：表格块和插图块保持完整语义边界，长文本按窗口切分。
-- embed_loader：固定使用本地 `F:\code\knowledge_agent\models\bge-base-zh-v1.5`，维度校验为 768。
+- embed_loader：默认使用本地 `PROJECT_ROOT / models / bge-base-zh-v1.5`，可通过 `BGE_MODEL_PATH` 覆盖；维度校验为 768。
 - vector_store：单 Chroma，本地持久化到 `datas/chroma`，异常时保留关键词兜底。
 - reranker：`models\bge-reranker-base` 已就位；`smoke_test` 会设置 `RERANKER_ENABLED=true` 并验证 Top-1 重排探针。
 - VLM：`models\qwen2.5-vl` 本地权重已就位，加载配置包含 `load_in_4bit=True`；当前 `.venv` 已安装 `bitsandbytes`，真实 VLM 加载和图片描述链路可用。若后续环境缺少 4-bit 依赖，插图语义会回退为 PaddleOCR 文本。
@@ -261,6 +455,6 @@ F:\code\knowledge_agent\.venv\Scripts\python.exe scripts\verify_readme.py
 M1 验证命令：
 
 ```powershell
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m agent_server.rag.smoke_test
-F:\code\knowledge_agent\.venv\Scripts\python.exe -m pytest harness_test\test_m1_rag.py -q
+.venv\Scripts\python.exe -m agent_server.rag.smoke_test
+.venv\Scripts\python.exe -m pytest harness_test\test_m1_rag.py -q
 ```

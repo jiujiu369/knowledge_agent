@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from pathlib import Path
 
 from agent_server.rag.chunker import DocumentChunk
+from common.constants import RERANKER_MODEL_PATH
 
 
-RERANKER_MODEL_PATH = Path(r"F:\code\knowledge_agent\models\bge-reranker-base")
 RERANKER_REQUIRED_FILES = ("config.json", "tokenizer_config.json")
 
 

@@ -37,7 +37,9 @@ def test_admin_creates_user_with_default_password_and_user_changes_password(tmp_
     """
     client = _client(tmp_path, monkeypatch)
 
-    client.post("/api/auth/register", json={"username": "root", "password": "Passw0rd!", "role": "admin"})
+    from agent_server.core.auth import register_user
+
+    register_user("root", "Passw0rd!", "admin")
     admin_login = client.post("/api/auth/login", json={"username": "root", "password": "Passw0rd!"})
     admin_headers = {"Authorization": f"Bearer {admin_login.json()['data']['token']}"}
 
@@ -105,6 +107,24 @@ def test_employee_cannot_create_users(tmp_path, monkeypatch):
     assert response.status_code == 403
 
 
+def test_public_register_cannot_create_admin(tmp_path, monkeypatch):
+    """验证公共注册始终创建普通用户。
+
+    :param tmp_path: pytest 提供的隔离临时目录。
+    :param monkeypatch: pytest 提供的运行时替换夹具。
+    :return: 无返回值；公共注册角色越权时断言失败。
+    """
+    client = _client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/api/auth/register",
+        json={"username": "public_user", "password": "Passw0rd!", "role": "admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["role"] == "employee"
+
+
 def test_admin_cannot_delete_or_reset_self(tmp_path, monkeypatch):
     """验证管理员`cannot`删除`or`重置`self`。
 
@@ -114,7 +134,9 @@ def test_admin_cannot_delete_or_reset_self(tmp_path, monkeypatch):
     """
     client = _client(tmp_path, monkeypatch)
 
-    client.post("/api/auth/register", json={"username": "root", "password": "Passw0rd!", "role": "admin"})
+    from agent_server.core.auth import register_user
+
+    register_user("root", "Passw0rd!", "admin")
     admin_login = client.post("/api/auth/login", json={"username": "root", "password": "Passw0rd!"})
     admin_headers = {"Authorization": f"Bearer {admin_login.json()['data']['token']}"}
 
